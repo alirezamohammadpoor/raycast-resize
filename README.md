@@ -6,9 +6,17 @@ Raycast extension: viewport-accurate Chrome window presets for responsive dev. F
 - The local Chrome window's own UI is **measured live** (never guessed), so the *viewport* — not the outer window — hits the preset numbers exactly. Bookmarks bar, scrollbar mode, zoom all handled.
 - All presets resize for real — programmatic bounds bypass Chrome's drag minimum, so even 320–440px phone widths work. Phone/iPad HUDs say "geometry only" (touch, DPR 3, dvh, safe areas still need a device or DevTools). A **Phone Presets** preference can route iPhone presets to DevTools device mode instead.
 
+## Install (from source)
+
+```bash
+git clone https://github.com/alirezamohammadpoor/raycast-resize
+cd raycast-resize
+npm install && npm run dev   # imports into Raycast, persists after you stop it
+```
+
 ## Setup
 
-1. `npm install && npm run dev` (imports the extension into Raycast).
+1. Install from source as above (until the Raycast Store version lands).
 2. Chrome → **View → Developer → Allow JavaScript from Apple Events** (one-time; needed to measure the viewport).
 3. First resize prompts macOS to allow Raycast to control Chrome — accept.
 
