@@ -47,5 +47,5 @@ export function saveUserPreset(preset: Preset): void {
 
 export function presetDeeplink(preset: Preset): string {
   const args = encodeURIComponent(JSON.stringify({ preset: preset.id }));
-  return `raycast://extensions/alirezamohammadpoor/resize/apply-preset?arguments=${args}`;
+  return `raycast://extensions/ali_reza_mohammad_poor/resize/apply-preset?arguments=${args}`;
 }

@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Detail, Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Detail, Icon, List, Keyboard } from "@raycast/api";
 import { openDeviceMode } from "./devtools";
 import { loadPresets, presetDeeplink, USER_PRESET_PATH } from "./presets";
 import { applyAndNotify } from "./resize";
@@ -43,12 +43,20 @@ function PresetItem({ preset: p }: { preset: Preset }) {
       actions={
         <ActionPanel>
           {isInfo ? (
-            <Action.Push title="Show Device Info" icon={Icon.Info} target={<InfoDetail preset={p} />} />
+            <Action.Push
+              title="Show Device Info"
+              icon={Icon.Info}
+              target={<InfoDetail preset={p} />}
+            />
           ) : (
             <Action title="Apply Preset" icon={Icon.AppWindow} onAction={() => applyAndNotify(p)} />
           )}
           {!isInfo && p.warnings.length > 0 && (
-            <Action.Push title="Show Device Info" icon={Icon.Info} target={<InfoDetail preset={p} />} />
+            <Action.Push
+              title="Show Device Info"
+              icon={Icon.Info}
+              target={<InfoDetail preset={p} />}
+            />
           )}
           {(isInfo || p.class === "phone") && (
             <Action
@@ -69,7 +77,7 @@ function PresetItem({ preset: p }: { preset: Preset }) {
           <Action.Open
             title="Open Custom Preset File"
             target={USER_PRESET_PATH}
-            shortcut={{ modifiers: ["cmd"], key: "o" }}
+            shortcut={Keyboard.Shortcut.Common.Open}
           />
         </ActionPanel>
       }
@@ -95,7 +103,10 @@ function InfoDetail({ preset: p }: { preset: Preset }) {
             icon={Icon.Mobile}
             onAction={() => openDeviceMode(p.name, p.viewport)}
           />
-          <Action.CopyToClipboard title="Copy Dimensions" content={`${p.viewport.w}x${p.viewport.h}`} />
+          <Action.CopyToClipboard
+            title="Copy Dimensions"
+            content={`${p.viewport.w}x${p.viewport.h}`}
+          />
         </ActionPanel>
       }
     />

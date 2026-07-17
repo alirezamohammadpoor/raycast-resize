@@ -12,6 +12,18 @@ Raycast extension: viewport-accurate Chrome window presets for responsive dev. F
 2. Chrome → **View → Developer → Allow JavaScript from Apple Events** (one-time; needed to measure the viewport).
 3. First resize prompts macOS to allow Raycast to control Chrome — accept.
 
+## Permissions & how it works
+
+The extension drives Chrome exclusively through Chrome's own AppleScript dictionary — no Accessibility API for resizing.
+
+| Permission | Used for | When asked |
+|---|---|---|
+| Chrome: "Allow JavaScript from Apple Events" | Reading `innerWidth`/`innerHeight`/`devicePixelRatio` to measure the window chrome live | Manual one-time toggle (Chrome blocks programmatic enabling by design) |
+| macOS Automation: Raycast → Google Chrome | `get/set bounds`, `execute javascript` | System prompt on first resize |
+| macOS Accessibility (Raycast) | Only the optional DevTools handoff (sends ⌥⌘I + ⌘⇧M via System Events) | Only if you use DevTools mode |
+
+The resize loop: measure viewport → compute chrome delta (bounds − inner) → set bounds = target + delta → re-measure → correct once. Zoom ≠ 100% aborts with a warning (CSS px would not equal points). Presets that don't fit the display clamp height and say so in the HUD.
+
 ## Commands
 
 | Command | Use |

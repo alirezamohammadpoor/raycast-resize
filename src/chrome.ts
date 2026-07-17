@@ -49,7 +49,8 @@ export async function measure(): Promise<Measurement> {
       );
     }
     const chromeMsg = detail.split(" ::: ")[1]?.trim() ?? "";
-    if (chromeMsg.includes("turned off") || out.startsWith("ERR:JSNULL")) throw new Error(SETUP_HINT);
+    if (chromeMsg.includes("turned off") || out.startsWith("ERR:JSNULL"))
+      throw new Error(SETUP_HINT);
     throw new Error(chromeMsg || SETUP_HINT);
   }
 

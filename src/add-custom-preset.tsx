@@ -26,7 +26,10 @@ export default function Command() {
 
     const coarse = values.presetClass === "phone" || values.presetClass === "tablet";
     const preset: Preset = {
-      id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+      id: name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, ""),
       name,
       class: values.presetClass,
       viewport: { w, h },
@@ -64,7 +67,9 @@ export default function Command() {
         <Form.Dropdown.Item value="tablet" title="Tablet" />
         <Form.Dropdown.Item value="phone" title="Phone" />
       </Form.Dropdown>
-      <Form.Description text={`Saved to ${USER_PRESET_PATH} — hand-editable, merges over built-ins by id.`} />
+      <Form.Description
+        text={`Saved to ${USER_PRESET_PATH} — hand-editable, merges over built-ins by id.`}
+      />
     </Form>
   );
 }

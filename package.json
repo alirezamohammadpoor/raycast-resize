@@ -4,9 +4,14 @@
   "title": "Resize",
   "description": "Viewport-accurate Chrome window presets for responsive dev. DevTools-parity device sizes, live chrome measurement, honest about what a window resize can't simulate.",
   "icon": "icon.png",
-  "author": "alirezamohammadpoor",
+  "author": "ali_reza_mohammad_poor",
   "license": "MIT",
-  "platforms": ["macOS"],
+  "platforms": [
+    "macOS"
+  ],
+  "categories": [
+    "Developer Tools"
+  ],
   "commands": [
     {
       "name": "resize-to-preset",
@@ -56,21 +61,66 @@
       "required": false,
       "default": "mbp14",
       "data": [
-        { "title": "MacBook Pro 16\" (1728×1117)", "value": "mbp16" },
-        { "title": "MacBook Pro 14\" (1512×982)", "value": "mbp14" },
-        { "title": "MacBook Air 15\" (1440×932)", "value": "air15" },
-        { "title": "MacBook Air 13.6\" (1280×832)", "value": "air13" },
-        { "title": "iPad Pro 13\" landscape (1376×1032)", "value": "ipad-pro13-landscape" },
-        { "title": "iPad Pro 13\" portrait (1032×1376)", "value": "ipad-pro13-portrait" },
-        { "title": "iPad Air 11\" landscape (1180×820)", "value": "ipad-air11-landscape" },
-        { "title": "iPad Air 11\" portrait (820×1180)", "value": "ipad-air11-portrait" },
-        { "title": "iPad mini landscape (1133×744)", "value": "ipad-mini-landscape" },
-        { "title": "iPad Split ½ (678×1032)", "value": "ipad-split-half" },
-        { "title": "iPad Split ⅓ (320×820)", "value": "ipad-split-third" },
-        { "title": "iPhone Pro Max (440×956)", "value": "iphone-pro-max" },
-        { "title": "iPhone standard (393×852)", "value": "iphone-standard" },
-        { "title": "iPhone SE (375×667)", "value": "iphone-se" },
-        { "title": "— skip —", "value": "none" }
+        {
+          "title": "MacBook Pro 16\" (1728×1117)",
+          "value": "mbp16"
+        },
+        {
+          "title": "MacBook Pro 14\" (1512×982)",
+          "value": "mbp14"
+        },
+        {
+          "title": "MacBook Air 15\" (1440×932)",
+          "value": "air15"
+        },
+        {
+          "title": "MacBook Air 13.6\" (1280×832)",
+          "value": "air13"
+        },
+        {
+          "title": "iPad Pro 13\" landscape (1376×1032)",
+          "value": "ipad-pro13-landscape"
+        },
+        {
+          "title": "iPad Pro 13\" portrait (1032×1376)",
+          "value": "ipad-pro13-portrait"
+        },
+        {
+          "title": "iPad Air 11\" landscape (1180×820)",
+          "value": "ipad-air11-landscape"
+        },
+        {
+          "title": "iPad Air 11\" portrait (820×1180)",
+          "value": "ipad-air11-portrait"
+        },
+        {
+          "title": "iPad mini landscape (1133×744)",
+          "value": "ipad-mini-landscape"
+        },
+        {
+          "title": "iPad Split ½ (678×1032)",
+          "value": "ipad-split-half"
+        },
+        {
+          "title": "iPad Split ⅓ (320×820)",
+          "value": "ipad-split-third"
+        },
+        {
+          "title": "iPhone Pro Max (440×956)",
+          "value": "iphone-pro-max"
+        },
+        {
+          "title": "iPhone standard (393×852)",
+          "value": "iphone-standard"
+        },
+        {
+          "title": "iPhone SE (375×667)",
+          "value": "iphone-se"
+        },
+        {
+          "title": "— skip —",
+          "value": "none"
+        }
       ]
     },
     {
@@ -81,21 +131,66 @@
       "required": false,
       "default": "ipad-air11-portrait",
       "data": [
-        { "title": "MacBook Pro 16\" (1728×1117)", "value": "mbp16" },
-        { "title": "MacBook Pro 14\" (1512×982)", "value": "mbp14" },
-        { "title": "MacBook Air 15\" (1440×932)", "value": "air15" },
-        { "title": "MacBook Air 13.6\" (1280×832)", "value": "air13" },
-        { "title": "iPad Pro 13\" landscape (1376×1032)", "value": "ipad-pro13-landscape" },
-        { "title": "iPad Pro 13\" portrait (1032×1376)", "value": "ipad-pro13-portrait" },
-        { "title": "iPad Air 11\" landscape (1180×820)", "value": "ipad-air11-landscape" },
-        { "title": "iPad Air 11\" portrait (820×1180)", "value": "ipad-air11-portrait" },
-        { "title": "iPad mini landscape (1133×744)", "value": "ipad-mini-landscape" },
-        { "title": "iPad Split ½ (678×1032)", "value": "ipad-split-half" },
-        { "title": "iPad Split ⅓ (320×820)", "value": "ipad-split-third" },
-        { "title": "iPhone Pro Max (440×956)", "value": "iphone-pro-max" },
-        { "title": "iPhone standard (393×852)", "value": "iphone-standard" },
-        { "title": "iPhone SE (375×667)", "value": "iphone-se" },
-        { "title": "— skip —", "value": "none" }
+        {
+          "title": "MacBook Pro 16\" (1728×1117)",
+          "value": "mbp16"
+        },
+        {
+          "title": "MacBook Pro 14\" (1512×982)",
+          "value": "mbp14"
+        },
+        {
+          "title": "MacBook Air 15\" (1440×932)",
+          "value": "air15"
+        },
+        {
+          "title": "MacBook Air 13.6\" (1280×832)",
+          "value": "air13"
+        },
+        {
+          "title": "iPad Pro 13\" landscape (1376×1032)",
+          "value": "ipad-pro13-landscape"
+        },
+        {
+          "title": "iPad Pro 13\" portrait (1032×1376)",
+          "value": "ipad-pro13-portrait"
+        },
+        {
+          "title": "iPad Air 11\" landscape (1180×820)",
+          "value": "ipad-air11-landscape"
+        },
+        {
+          "title": "iPad Air 11\" portrait (820×1180)",
+          "value": "ipad-air11-portrait"
+        },
+        {
+          "title": "iPad mini landscape (1133×744)",
+          "value": "ipad-mini-landscape"
+        },
+        {
+          "title": "iPad Split ½ (678×1032)",
+          "value": "ipad-split-half"
+        },
+        {
+          "title": "iPad Split ⅓ (320×820)",
+          "value": "ipad-split-third"
+        },
+        {
+          "title": "iPhone Pro Max (440×956)",
+          "value": "iphone-pro-max"
+        },
+        {
+          "title": "iPhone standard (393×852)",
+          "value": "iphone-standard"
+        },
+        {
+          "title": "iPhone SE (375×667)",
+          "value": "iphone-se"
+        },
+        {
+          "title": "— skip —",
+          "value": "none"
+        }
       ]
     },
     {
@@ -106,21 +201,66 @@
       "required": false,
       "default": "iphone-standard",
       "data": [
-        { "title": "MacBook Pro 16\" (1728×1117)", "value": "mbp16" },
-        { "title": "MacBook Pro 14\" (1512×982)", "value": "mbp14" },
-        { "title": "MacBook Air 15\" (1440×932)", "value": "air15" },
-        { "title": "MacBook Air 13.6\" (1280×832)", "value": "air13" },
-        { "title": "iPad Pro 13\" landscape (1376×1032)", "value": "ipad-pro13-landscape" },
-        { "title": "iPad Pro 13\" portrait (1032×1376)", "value": "ipad-pro13-portrait" },
-        { "title": "iPad Air 11\" landscape (1180×820)", "value": "ipad-air11-landscape" },
-        { "title": "iPad Air 11\" portrait (820×1180)", "value": "ipad-air11-portrait" },
-        { "title": "iPad mini landscape (1133×744)", "value": "ipad-mini-landscape" },
-        { "title": "iPad Split ½ (678×1032)", "value": "ipad-split-half" },
-        { "title": "iPad Split ⅓ (320×820)", "value": "ipad-split-third" },
-        { "title": "iPhone Pro Max (440×956)", "value": "iphone-pro-max" },
-        { "title": "iPhone standard (393×852)", "value": "iphone-standard" },
-        { "title": "iPhone SE (375×667)", "value": "iphone-se" },
-        { "title": "— skip —", "value": "none" }
+        {
+          "title": "MacBook Pro 16\" (1728×1117)",
+          "value": "mbp16"
+        },
+        {
+          "title": "MacBook Pro 14\" (1512×982)",
+          "value": "mbp14"
+        },
+        {
+          "title": "MacBook Air 15\" (1440×932)",
+          "value": "air15"
+        },
+        {
+          "title": "MacBook Air 13.6\" (1280×832)",
+          "value": "air13"
+        },
+        {
+          "title": "iPad Pro 13\" landscape (1376×1032)",
+          "value": "ipad-pro13-landscape"
+        },
+        {
+          "title": "iPad Pro 13\" portrait (1032×1376)",
+          "value": "ipad-pro13-portrait"
+        },
+        {
+          "title": "iPad Air 11\" landscape (1180×820)",
+          "value": "ipad-air11-landscape"
+        },
+        {
+          "title": "iPad Air 11\" portrait (820×1180)",
+          "value": "ipad-air11-portrait"
+        },
+        {
+          "title": "iPad mini landscape (1133×744)",
+          "value": "ipad-mini-landscape"
+        },
+        {
+          "title": "iPad Split ½ (678×1032)",
+          "value": "ipad-split-half"
+        },
+        {
+          "title": "iPad Split ⅓ (320×820)",
+          "value": "ipad-split-third"
+        },
+        {
+          "title": "iPhone Pro Max (440×956)",
+          "value": "iphone-pro-max"
+        },
+        {
+          "title": "iPhone standard (393×852)",
+          "value": "iphone-standard"
+        },
+        {
+          "title": "iPhone SE (375×667)",
+          "value": "iphone-se"
+        },
+        {
+          "title": "— skip —",
+          "value": "none"
+        }
       ]
     },
     {
@@ -131,8 +271,14 @@
       "required": false,
       "default": "resize",
       "data": [
-        { "title": "Resize browser window (geometry only — no touch/DPR 3)", "value": "resize" },
-        { "title": "Always open DevTools device mode", "value": "devtools" }
+        {
+          "title": "Resize browser window (geometry only — no touch/DPR 3)",
+          "value": "resize"
+        },
+        {
+          "title": "Always open DevTools device mode",
+          "value": "devtools"
+        }
       ]
     }
   ],
@@ -141,13 +287,18 @@
     "@raycast/utils": "^1.18.0"
   },
   "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
     "@types/node": "^20.8.10",
     "@types/react": "^19.0.0",
+    "eslint": "^10.7.0",
+    "prettier": "^3.9.5",
     "typescript": "^5.5.0"
   },
   "scripts": {
     "dev": "ray develop",
     "build": "ray build -e dist",
-    "lint": "ray lint"
+    "lint": "ray lint",
+    "fix-lint": "ray lint --fix",
+    "publish": "npx @raycast/api@latest publish"
   }
 }

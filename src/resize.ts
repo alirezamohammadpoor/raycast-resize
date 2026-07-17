@@ -76,7 +76,9 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
       ? "✓"
       : `(requested ${r.requested.w}×${r.requested.h}${r.clamped ? ", clamped to display" : ""})`;
     const caveat = p.pointer === "coarse" ? " · geometry only" : "";
-    await showHUD(`${prefix}${p.name} — viewport ${r.achieved.w}×${r.achieved.h} ${suffix}${caveat}`);
+    await showHUD(
+      `${prefix}${p.name} — viewport ${r.achieved.w}×${r.achieved.h} ${suffix}${caveat}`,
+    );
   } catch (e) {
     await showFailureToast(e, { title: "Resize failed" });
   }
