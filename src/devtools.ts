@@ -22,22 +22,31 @@ tell application "System Events"
 	keystroke "m" using {command down, shift down}
 end tell`;
 
-export async function openDeviceMode(
-  deviceName: string,
-  viewport?: { w: number; h: number },
-): Promise<void> {
+export async function openDeviceMode(deviceName: string, viewport?: { w: number; h: number }): Promise<void> {
+  let previousBounds: { x1: number; y1: number; x2: number; y2: number } | undefined;
+
   try {
     await closeMainWindow();
     await runAppleScript(SCRIPT);
+
     if (viewport) {
-      const m = await measure().catch(() => undefined);
-      if (m) {
-        const outerW = Math.min(m.avail.w, viewport.w + DEVTOOLS_DOCK);
-        await setBounds(m.avail.left, m.avail.top, m.avail.left + outerW, m.avail.top + m.avail.h);
-      }
+      // Measurement must succeed for a complete handoff — never report success
+      // after swallowing a measure failure (store review feedback).
+      const m = await measure();
+      previousBounds = m.bounds;
+      const outerW = Math.min(m.avail.w, viewport.w + DEVTOOLS_DOCK);
+      await setBounds(m.avail.left, m.avail.top, m.avail.left + outerW, m.avail.top + m.avail.h);
     }
+
     await showHUD(`DevTools device mode — pick “${deviceName}” (⌘⇧M if DevTools was already open)`);
   } catch (e) {
+    if (previousBounds) {
+      try {
+        await setBounds(previousBounds.x1, previousBounds.y1, previousBounds.x2, previousBounds.y2);
+      } catch {
+        // best-effort restore
+      }
+    }
     await showFailureToast(e, {
       title: "Couldn't open DevTools — Raycast may need Accessibility permission",
     });
