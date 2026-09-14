@@ -1,0 +1,1004 @@
+From 6f48396d18fa65d12b74bcbe46e1ee2d8f2e4b9c Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Mon, 14 Sep 2026 13:34:47 +0000
+Subject: [PATCH] feat: Chrome Viewport standalone + DevTools cycle fix
+
+---
+ .../{resize => chrome-viewport}/.gitignore    |   0
+ extensions/chrome-viewport/.prettierrc        |   4 +
+ .../{resize => chrome-viewport}/CHANGELOG.md  |   4 +-
+ extensions/chrome-viewport/README.md          |  41 +++++++
+ .../assets/devices.json                       |   0
+ .../assets/icon.png                           | Bin
+ .../eslint.config.mjs                         |   0
+ .../metadata/resize-1.png                     | Bin
+ .../metadata/resize-2.png                     | Bin
+ .../metadata/resize-3.png                     | Bin
+ .../package-lock.json                         |   4 +-
+ .../{resize => chrome-viewport}/package.json  |  25 ++--
+ .../src/add-custom-preset.tsx                 |   2 +-
+ .../src/apply-preset.ts                       |   3 +-
+ .../{resize => chrome-viewport}/src/chrome.ts |   7 +-
+ .../src/cycle-breakpoints.ts                  |   6 +-
+ .../chrome-viewport/src/devtools-geometry.ts  |  34 ++++++
+ extensions/chrome-viewport/src/devtools.ts    |  83 +++++++++++++
+ .../src/measure-viewport.tsx                  |   6 +-
+ .../src/presets.ts                            |  71 ++++++++----
+ .../src/resize-to-preset.tsx                  |  64 +++++-----
+ .../{resize => chrome-viewport}/src/resize.ts |  10 +-
+ .../{resize => chrome-viewport}/src/types.ts  |   0
+ .../{resize => chrome-viewport}/tsconfig.json |   0
+ extensions/resize/.prettierrc                 |   3 -
+ extensions/resize/README.md                   |  52 ---------
+ extensions/resize/SPEC.md                     | 109 ------------------
+ extensions/resize/src/devtools.ts             |  45 --------
+ 28 files changed, 277 insertions(+), 296 deletions(-)
+ rename extensions/{resize => chrome-viewport}/.gitignore (100%)
+ create mode 100644 extensions/chrome-viewport/.prettierrc
+ rename extensions/{resize => chrome-viewport}/CHANGELOG.md (89%)
+ create mode 100644 extensions/chrome-viewport/README.md
+ rename extensions/{resize => chrome-viewport}/assets/devices.json (100%)
+ rename extensions/{resize => chrome-viewport}/assets/icon.png (100%)
+ rename extensions/{resize => chrome-viewport}/eslint.config.mjs (100%)
+ rename extensions/{resize => chrome-viewport}/metadata/resize-1.png (100%)
+ rename extensions/{resize => chrome-viewport}/metadata/resize-2.png (100%)
+ rename extensions/{resize => chrome-viewport}/metadata/resize-3.png (100%)
+ rename extensions/{resize => chrome-viewport}/package-lock.json (99%)
+ rename extensions/{resize => chrome-viewport}/package.json (93%)
+ rename extensions/{resize => chrome-viewport}/src/add-custom-preset.tsx (95%)
+ rename extensions/{resize => chrome-viewport}/src/apply-preset.ts (80%)
+ rename extensions/{resize => chrome-viewport}/src/chrome.ts (95%)
+ rename extensions/{resize => chrome-viewport}/src/cycle-breakpoints.ts (85%)
+ create mode 100644 extensions/chrome-viewport/src/devtools-geometry.ts
+ create mode 100644 extensions/chrome-viewport/src/devtools.ts
+ rename extensions/{resize => chrome-viewport}/src/measure-viewport.tsx (81%)
+ rename extensions/{resize => chrome-viewport}/src/presets.ts (60%)
+ rename extensions/{resize => chrome-viewport}/src/resize-to-preset.tsx (59%)
+ rename extensions/{resize => chrome-viewport}/src/resize.ts (89%)
+ rename extensions/{resize => chrome-viewport}/src/types.ts (100%)
+ rename extensions/{resize => chrome-viewport}/tsconfig.json (100%)
+ delete mode 100644 extensions/resize/.prettierrc
+ delete mode 100644 extensions/resize/README.md
+ delete mode 100644 extensions/resize/SPEC.md
+ delete mode 100644 extensions/resize/src/devtools.ts
+
+diff --git a/extensions/resize/.gitignore b/extensions/chrome-viewport/.gitignore
+similarity index 100%
+rename from extensions/resize/.gitignore
+rename to extensions/chrome-viewport/.gitignore
+diff --git a/extensions/chrome-viewport/.prettierrc b/extensions/chrome-viewport/.prettierrc
+new file mode 100644
+index 000000000..fc0f50306
+--- /dev/null
++++ b/extensions/chrome-viewport/.prettierrc
+@@ -0,0 +1,4 @@
++{
++  "printWidth": 120,
++  "singleQuote": false
++}
+diff --git a/extensions/resize/CHANGELOG.md b/extensions/chrome-viewport/CHANGELOG.md
+similarity index 89%
+rename from extensions/resize/CHANGELOG.md
+rename to extensions/chrome-viewport/CHANGELOG.md
+index 639592be9..ee4b6e1df 100644
+--- a/extensions/resize/CHANGELOG.md
++++ b/extensions/chrome-viewport/CHANGELOG.md
+@@ -1,4 +1,4 @@
+-# Resize Changelog
++# Chrome Viewport Changelog
+ 
+ ## [Initial Release] - {PR_MERGE_DATE}
+ 
+@@ -6,6 +6,6 @@
+ - 14 built-in presets across MacBooks, iPads, iPad Split View widths, and iPhones, using the same dimensions Chrome DevTools reports for each device.
+ - **Cycle Breakpoints** command for stepping through a three-slot rotation on a single hotkey, configurable in extension preferences.
+ - **Phone Presets** preference to either resize the window directly or hand off to Chrome DevTools device mode for touch, DPR 3, and safe-area testing.
+-- Custom presets in `~/.config/resize/presets.json`, merged over the built-ins by id.
++- Custom presets in the extension support folder (`presets.json`), merged over the built-ins by id.
+ - **Measure Viewport** command for inspecting the current viewport, window bounds, chrome delta, and zoom state.
+ - Guards against silently wrong results: aborts when Chrome zoom is not 100%, clamps presets taller than the display and says so, and distinguishes a disabled Apple Events setting from an internal `chrome://` tab.
+diff --git a/extensions/chrome-viewport/README.md b/extensions/chrome-viewport/README.md
+new file mode 100644
+index 000000000..066da6e24
+--- /dev/null
++++ b/extensions/chrome-viewport/README.md
+@@ -0,0 +1,41 @@
++# Chrome Viewport
++
++Resize the front Chrome window so its **viewport** — not the outer frame — matches a device preset. Presets follow the Chrome DevTools contract (iPad Air → 820×1180). The local Chrome chrome is measured live on every run, so bookmarks bar, scrollbar mode, and docked DevTools are absorbed automatically.
++
++Phone/iPad HUDs say "geometry only" (touch, DPR 3, `dvh`, safe areas still need a device or DevTools). A **Phone Presets** preference can route iPhone presets to DevTools device mode instead.
++
++## Setup
++
++1. Install from the Raycast Store.
++2. Chrome → **View → Developer → Allow JavaScript from Apple Events** (one-time; needed to measure the viewport).
++3. First resize prompts macOS to allow Raycast to control Chrome — accept.
++
++## Permissions & how it works
++
++The extension drives Chrome exclusively through Chrome's own AppleScript dictionary — no Accessibility API for resizing.
++
++| Permission                                   | Used for                                                                                | When asked                                                             |
++| -------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
++| Chrome: "Allow JavaScript from Apple Events" | Reading `innerWidth`/`innerHeight`/`devicePixelRatio` to measure the window chrome live | Manual one-time toggle (Chrome blocks programmatic enabling by design) |
++| macOS Automation: Raycast → Google Chrome    | `get/set bounds`, `execute javascript`                                                  | System prompt on first resize                                          |
++| macOS Accessibility (Raycast)                | Only the optional DevTools handoff (sends ⌥⌘I + ⌘⇧M via System Events)                  | Only if you use DevTools mode                                          |
++
++The resize loop: measure viewport → compute chrome delta (bounds − inner) → set bounds = target + delta → re-measure → correct once. Zoom ≠ 100% aborts with a warning (CSS px would not equal points). Presets that don't fit the display clamp height and say so in the HUD.
++
++## Commands
++
++| Command           | Use                                                                                               |
++| ----------------- | ------------------------------------------------------------------------------------------------- |
++| Resize to Preset  | Searchable device list; ⏎ resizes, `⌘C` copies dims, quicklink action creates a per-preset hotkey |
++| Cycle Breakpoints | Bind to a hotkey (e.g. `⌥⌘R`), hit repeatedly to step through pinned widths                       |
++| Apply Preset      | No-view command with an argument — the target for Quicklink hotkeys                               |
++| Add Custom Preset | Saves under the extension support folder                                                          |
++| Measure Viewport  | Diagnostic: viewport vs window bounds, chrome delta, zoom state                                   |
++
++## Custom presets
++
++Custom presets are stored in the extension support folder (`presets.json`) — hand-editable, merges over built-ins by `id`. Use **Open Custom Preset File** from Resize to Preset, or **Add Custom Preset**.
++
++## Cycle configuration
++
++The rotation is three dropdown slots in extension settings (⌘⇧, on any Chrome Viewport command). A `cycle` array in the user presets file overrides the slots — use it for more than 3 steps or to include custom presets. The hotkey itself is bound in Raycast: Configure Command → Hotkey.
+diff --git a/extensions/resize/assets/devices.json b/extensions/chrome-viewport/assets/devices.json
+similarity index 100%
+rename from extensions/resize/assets/devices.json
+rename to extensions/chrome-viewport/assets/devices.json
+diff --git a/extensions/resize/assets/icon.png b/extensions/chrome-viewport/assets/icon.png
+similarity index 100%
+rename from extensions/resize/assets/icon.png
+rename to extensions/chrome-viewport/assets/icon.png
+diff --git a/extensions/resize/eslint.config.mjs b/extensions/chrome-viewport/eslint.config.mjs
+similarity index 100%
+rename from extensions/resize/eslint.config.mjs
+rename to extensions/chrome-viewport/eslint.config.mjs
+diff --git a/extensions/resize/metadata/resize-1.png b/extensions/chrome-viewport/metadata/resize-1.png
+similarity index 100%
+rename from extensions/resize/metadata/resize-1.png
+rename to extensions/chrome-viewport/metadata/resize-1.png
+diff --git a/extensions/resize/metadata/resize-2.png b/extensions/chrome-viewport/metadata/resize-2.png
+similarity index 100%
+rename from extensions/resize/metadata/resize-2.png
+rename to extensions/chrome-viewport/metadata/resize-2.png
+diff --git a/extensions/resize/metadata/resize-3.png b/extensions/chrome-viewport/metadata/resize-3.png
+similarity index 100%
+rename from extensions/resize/metadata/resize-3.png
+rename to extensions/chrome-viewport/metadata/resize-3.png
+diff --git a/extensions/resize/package-lock.json b/extensions/chrome-viewport/package-lock.json
+similarity index 99%
+rename from extensions/resize/package-lock.json
+rename to extensions/chrome-viewport/package-lock.json
+index 0acbdd57c..b0bf4ad72 100644
+--- a/extensions/resize/package-lock.json
++++ b/extensions/chrome-viewport/package-lock.json
+@@ -1,10 +1,10 @@
+ {
+-  "name": "resize",
++  "name": "chrome-viewport",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+-      "name": "resize",
++      "name": "chrome-viewport",
+       "license": "MIT",
+       "dependencies": {
+         "@raycast/api": "^1.94.0",
+diff --git a/extensions/resize/package.json b/extensions/chrome-viewport/package.json
+similarity index 93%
+rename from extensions/resize/package.json
+rename to extensions/chrome-viewport/package.json
+index 3795ad556..6f9446b17 100644
+--- a/extensions/resize/package.json
++++ b/extensions/chrome-viewport/package.json
+@@ -1,8 +1,8 @@
+ {
+   "$schema": "https://www.raycast.com/schemas/extension.json",
+-  "name": "resize",
+-  "title": "Resize",
+-  "description": "Viewport-accurate Chrome window presets for responsive dev. DevTools-parity device sizes, live chrome measurement, honest about what a window resize can't simulate.",
++  "name": "chrome-viewport",
++  "title": "Chrome Viewport",
++  "description": "Resize the front Chrome window so its viewport matches device presets for responsive work.",
+   "icon": "icon.png",
+   "author": "ali_reza_mohammad_poor",
+   "license": "MIT",
+@@ -17,7 +17,8 @@
+       "name": "resize-to-preset",
+       "title": "Resize to Preset",
+       "description": "Resize the front Chrome window so its viewport matches a device preset",
+-      "mode": "view"
++      "mode": "view",
++      "subtitle": "Chrome"
+     },
+     {
+       "name": "apply-preset",
+@@ -31,32 +32,36 @@
+           "type": "text",
+           "required": true
+         }
+-      ]
++      ],
++      "subtitle": "Chrome"
+     },
+     {
+       "name": "cycle-breakpoints",
+       "title": "Cycle Breakpoints",
+       "description": "Step through your pinned breakpoint sequence — bind to a hotkey and hit repeatedly",
+-      "mode": "no-view"
++      "mode": "no-view",
++      "subtitle": "Chrome"
+     },
+     {
+       "name": "add-custom-preset",
+       "title": "Add Custom Preset",
+-      "description": "Save a custom viewport preset to ~/.config/resize/presets.json",
+-      "mode": "view"
++      "description": "Save a custom viewport preset to the extension support folder",
++      "mode": "view",
++      "subtitle": "Chrome"
+     },
+     {
+       "name": "measure-viewport",
+       "title": "Measure Viewport",
+       "description": "Show the current Chrome viewport, window bounds, chrome delta, and zoom state",
+-      "mode": "view"
++      "mode": "view",
++      "subtitle": "Chrome"
+     }
+   ],
+   "preferences": [
+     {
+       "name": "cycle1",
+       "title": "Cycle Slot 1",
+-      "description": "First preset in the Cycle Breakpoints rotation. Ignored if ~/.config/resize/presets.json defines a cycle array.",
++      "description": "First preset in the Cycle Breakpoints rotation. Ignored if the user presets file defines a cycle array.",
+       "type": "dropdown",
+       "required": false,
+       "default": "mbp14",
+diff --git a/extensions/resize/src/add-custom-preset.tsx b/extensions/chrome-viewport/src/add-custom-preset.tsx
+similarity index 95%
+rename from extensions/resize/src/add-custom-preset.tsx
+rename to extensions/chrome-viewport/src/add-custom-preset.tsx
+index 04c606759..ae30963ef 100644
+--- a/extensions/resize/src/add-custom-preset.tsx
++++ b/extensions/chrome-viewport/src/add-custom-preset.tsx
+@@ -72,7 +72,7 @@ export default function Command() {
+         <Form.Dropdown.Item value="phone" title="Phone" />
+       </Form.Dropdown>
+       <Form.Description
+-        text={`Saved to ${USER_PRESET_PATH} — hand-editable, merges over built-ins by id.`}
++        text={`Saved under the extension support folder — hand-editable, merges over built-ins by id.`}
+       />
+     </Form>
+   );
+diff --git a/extensions/resize/src/apply-preset.ts b/extensions/chrome-viewport/src/apply-preset.ts
+similarity index 80%
+rename from extensions/resize/src/apply-preset.ts
+rename to extensions/chrome-viewport/src/apply-preset.ts
+index 97ce72a0c..98f567777 100644
+--- a/extensions/resize/src/apply-preset.ts
++++ b/extensions/chrome-viewport/src/apply-preset.ts
+@@ -7,8 +7,7 @@ export default async function Command(props: LaunchProps<{ arguments: { preset:
+   const { presets } = loadPresets();
+ 
+   const preset =
+-    presets.find((p) => p.id.toLowerCase() === query) ??
+-    presets.find((p) => p.name.toLowerCase().includes(query));
++    presets.find((p) => p.id.toLowerCase() === query) ?? presets.find((p) => p.name.toLowerCase().includes(query));
+ 
+   if (!preset) {
+     await showHUD(`No preset matching “${props.arguments.preset}”`);
+diff --git a/extensions/resize/src/chrome.ts b/extensions/chrome-viewport/src/chrome.ts
+similarity index 95%
+rename from extensions/resize/src/chrome.ts
+rename to extensions/chrome-viewport/src/chrome.ts
+index 8f9139993..49c1cf842 100644
+--- a/extensions/resize/src/chrome.ts
++++ b/extensions/chrome-viewport/src/chrome.ts
+@@ -55,8 +55,7 @@ export async function measure(): Promise<Measurement> {
+       );
+     }
+     const chromeMsg = detail.split(" ::: ")[1]?.trim() ?? "";
+-    if (chromeMsg.includes("turned off") || out.startsWith("ERR:JSNULL"))
+-      throw new Error(SETUP_HINT);
++    if (chromeMsg.includes("turned off") || out.startsWith("ERR:JSNULL")) throw new Error(SETUP_HINT);
+     throw new Error(chromeMsg || SETUP_HINT);
+   }
+ 
+@@ -77,7 +76,5 @@ export async function measure(): Promise<Measurement> {
+ 
+ export async function setBounds(x1: number, y1: number, x2: number, y2: number): Promise<void> {
+   const coords = [x1, y1, x2, y2].map(Math.round).join(", ");
+-  await runAppleScript(
+-    `tell application "Google Chrome" to set bounds of front window to {${coords}}`,
+-  );
++  await runAppleScript(`tell application "Google Chrome" to set bounds of front window to {${coords}}`);
+ }
+diff --git a/extensions/resize/src/cycle-breakpoints.ts b/extensions/chrome-viewport/src/cycle-breakpoints.ts
+similarity index 85%
+rename from extensions/resize/src/cycle-breakpoints.ts
+rename to extensions/chrome-viewport/src/cycle-breakpoints.ts
+index 84e1be189..f66564df4 100644
+--- a/extensions/resize/src/cycle-breakpoints.ts
++++ b/extensions/chrome-viewport/src/cycle-breakpoints.ts
+@@ -10,11 +10,9 @@ export default async function Command() {
+   const { presets, fileCycle } = loadPresets();
+   const prefs = getPreferenceValues<{ cycle1?: string; cycle2?: string; cycle3?: string }>();
+ 
+-  // A cycle array in ~/.config/resize/presets.json overrides the settings slots
++  // A cycle array in the user presets file overrides the settings slots
+   // (the only way to get >3 steps or custom presets into the rotation).
+-  const ids =
+-    fileCycle ??
+-    [prefs.cycle1, prefs.cycle2, prefs.cycle3].filter((v): v is string => !!v && v !== "none");
++  const ids = fileCycle ?? [prefs.cycle1, prefs.cycle2, prefs.cycle3].filter((v): v is string => !!v && v !== "none");
+ 
+   const sequence = ids
+     .map((id) => presets.find((p) => p.id === id))
+diff --git a/extensions/chrome-viewport/src/devtools-geometry.ts b/extensions/chrome-viewport/src/devtools-geometry.ts
+new file mode 100644
+index 000000000..b33dffdbc
+--- /dev/null
++++ b/extensions/chrome-viewport/src/devtools-geometry.ts
+@@ -0,0 +1,34 @@
++/** Width reserved for a right-docked DevTools panel (device at 100% scale). */
++export const DEVTOOLS_DOCK = 620;
++
++export type Bounds = { x1: number; y1: number; x2: number; y2: number };
++export type Avail = { w: number; h: number; left: number; top: number };
++
++/**
++ * Ensure the window is large enough for viewport + docked DevTools.
++ * Never shrinks or jumps to the display origin — Cycle was forcing a small
++ * phone+dock frame on every phone step and yanking the window around.
++ */
++export function expandForDeviceMode(
++  bounds: Bounds,
++  avail: Avail,
++  viewport: { w: number; h: number },
++): Bounds & { changed: boolean } {
++  const curW = bounds.x2 - bounds.x1;
++  const curH = bounds.y2 - bounds.y1;
++  const needW = viewport.w + DEVTOOLS_DOCK;
++  const needH = viewport.h;
++
++  const outerW = Math.min(avail.w, Math.max(curW, needW));
++  const outerH = Math.min(avail.h, Math.max(curH, needH));
++
++  let x1 = bounds.x1;
++  let y1 = bounds.y1;
++  if (x1 + outerW > avail.left + avail.w) x1 = avail.left + avail.w - outerW;
++  if (y1 + outerH > avail.top + avail.h) y1 = avail.top + avail.h - outerH;
++  x1 = Math.max(avail.left, x1);
++  y1 = Math.max(avail.top, y1);
++
++  const changed = outerW !== curW || outerH !== curH || x1 !== bounds.x1 || y1 !== bounds.y1;
++  return { x1, y1, x2: x1 + outerW, y2: y1 + outerH, changed };
++}
+diff --git a/extensions/chrome-viewport/src/devtools.ts b/extensions/chrome-viewport/src/devtools.ts
+new file mode 100644
+index 000000000..2df07324b
+--- /dev/null
++++ b/extensions/chrome-viewport/src/devtools.ts
+@@ -0,0 +1,83 @@
++import { closeMainWindow, LocalStorage, showHUD } from "@raycast/api";
++import { runAppleScript, showFailureToast } from "@raycast/utils";
++import { measure, setBounds } from "./chrome";
++import { expandForDeviceMode } from "./devtools-geometry";
++
++export { DEVTOOLS_DOCK, expandForDeviceMode } from "./devtools-geometry";
++
++/** Set while we believe DevTools device mode is open from our handoff. */
++export const DT_HANDOFF_KEY = "devtools-handoff-active";
++
++// Chrome blocks opening DevTools programmatically except via keystrokes, so this
++// needs Raycast's Accessibility permission (System Events). ⌥⌘I and ⌘⇧M are both
++// toggles — we track handoff state in LocalStorage so repeat Cycle presses don't
++// close DevTools / flip device mode off.
++const OPEN_SCRIPT = `
++tell application "Google Chrome" to activate
++delay 0.3
++tell application "System Events"
++	keystroke "i" using {command down, option down}
++	delay 0.5
++	keystroke "m" using {command down, shift down}
++end tell`;
++
++const CLOSE_SCRIPT = `
++tell application "Google Chrome" to activate
++delay 0.2
++tell application "System Events"
++	keystroke "i" using {command down, option down}
++end tell`;
++
++export async function openDeviceMode(deviceName: string, viewport?: { w: number; h: number }): Promise<void> {
++  let previousBounds: { x1: number; y1: number; x2: number; y2: number } | undefined;
++
++  try {
++    await closeMainWindow();
++
++    const alreadyOpen = (await LocalStorage.getItem<string>(DT_HANDOFF_KEY)) === "1";
++    if (!alreadyOpen) {
++      await runAppleScript(OPEN_SCRIPT);
++      await LocalStorage.setItem(DT_HANDOFF_KEY, "1");
++    }
++
++    if (viewport) {
++      // Measurement must succeed for a complete handoff — never report success
++      // after a swallowed measure failure (store review feedback).
++      const m = await measure();
++      previousBounds = m.bounds;
++      const next = expandForDeviceMode(m.bounds, m.avail, viewport);
++      if (next.changed) {
++        await setBounds(next.x1, next.y1, next.x2, next.y2);
++      }
++    }
++
++    await showHUD(
++      alreadyOpen
++        ? `DevTools device mode — pick “${deviceName}”`
++        : `DevTools device mode — pick “${deviceName}” (⌘⇧M if DevTools was already open)`,
++    );
++  } catch (e) {
++    if (previousBounds) {
++      try {
++        await setBounds(previousBounds.x1, previousBounds.y1, previousBounds.x2, previousBounds.y2);
++      } catch {
++        // best-effort restore
++      }
++    }
++    await showFailureToast(e, {
++      title: "Couldn't open DevTools — Raycast may need Accessibility permission",
++    });
++  }
++}
++
++/** Close DevTools if we previously opened them via handoff, so window resizes measure clean chrome. */
++export async function closeDeviceModeIfNeeded(): Promise<void> {
++  const active = (await LocalStorage.getItem<string>(DT_HANDOFF_KEY)) === "1";
++  if (!active) return;
++  try {
++    await runAppleScript(CLOSE_SCRIPT);
++  } catch {
++    // still clear the flag so we don't skip opens forever
++  }
++  await LocalStorage.removeItem(DT_HANDOFF_KEY);
++}
+diff --git a/extensions/resize/src/measure-viewport.tsx b/extensions/chrome-viewport/src/measure-viewport.tsx
+similarity index 81%
+rename from extensions/resize/src/measure-viewport.tsx
+rename to extensions/chrome-viewport/src/measure-viewport.tsx
+index c340568c2..99440b205 100644
+--- a/extensions/resize/src/measure-viewport.tsx
++++ b/extensions/chrome-viewport/src/measure-viewport.tsx
+@@ -13,14 +13,16 @@ export default function Command() {
+   } else {
+     const outerW = data.bounds.x2 - data.bounds.x1;
+     const outerH = data.bounds.y2 - data.bounds.y1;
+-    const zoomOk = Math.abs(data.dpr - Math.round(data.dpr)) <= 0.01;
++    const zoomPct = Math.round(data.zoom * 100);
++    const zoomOk = Math.abs(data.zoom - 1) <= 0.01;
+     md = [
+       "# Current Chrome Window",
+       "",
+       `**Viewport:** ${data.inner.w}×${data.inner.h} CSS px`,
+       `**Outer window:** ${outerW}×${outerH} at (${data.bounds.x1}, ${data.bounds.y1})`,
+       `**Chrome UI delta:** +${outerW - data.inner.w} wide / +${outerH - data.inner.h} tall`,
+-      `**devicePixelRatio:** ${data.dpr} — zoom ${zoomOk ? "100% ✓" : "NOT 100%, press ⌘0"}`,
++      `**devicePixelRatio:** ${data.dpr}`,
++      `**Zoom:** ${zoomPct}% ${zoomOk ? "✓" : "— not 100%, press ⌘0"}`,
+       `**Display visible frame:** ${data.avail.w}×${data.avail.h} at (${data.avail.left}, ${data.avail.top})`,
+     ].join("\n\n");
+   }
+diff --git a/extensions/resize/src/presets.ts b/extensions/chrome-viewport/src/presets.ts
+similarity index 60%
+rename from extensions/resize/src/presets.ts
+rename to extensions/chrome-viewport/src/presets.ts
+index fd8697512..7077e6288 100644
+--- a/extensions/resize/src/presets.ts
++++ b/extensions/chrome-viewport/src/presets.ts
+@@ -1,10 +1,14 @@
+ import { environment } from "@raycast/api";
+-import { readFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
++import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+ import { homedir } from "os";
+ import path from "path";
+ import { Preset, PresetFile } from "./types";
+ 
+-export const USER_PRESET_PATH = path.join(homedir(), ".config", "resize", "presets.json");
++/** User presets live under the extension support directory (not ~/.config). */
++export const USER_PRESET_PATH = path.join(environment.supportPath, "presets.json");
++
++/** Pre-store path; migrated into supportPath on first read if still present. */
++const LEGACY_PRESET_PATH = path.join(homedir(), ".config", "resize", "presets.json");
+ 
+ const CLASSES = ["laptop", "tablet", "phone", "custom"];
+ 
+@@ -36,25 +40,35 @@ function normalizePreset(raw: unknown, base?: Preset): Preset | null {
+     pointer: merged.pointer === "coarse" ? "coarse" : "fine",
+     hover: typeof merged.hover === "boolean" ? merged.hover : merged.pointer !== "coarse",
+     strategy: merged.strategy === "info" ? "info" : "window",
+-    warnings: Array.isArray(merged.warnings)
+-      ? merged.warnings.filter((x) => typeof x === "string")
+-      : [],
++    warnings: Array.isArray(merged.warnings) ? merged.warnings.filter((x) => typeof x === "string") : [],
+   };
+ }
+ 
+-export function loadPresets(): { presets: Preset[]; cycle: string[]; fileCycle?: string[] } {
+-  const bundled: PresetFile = JSON.parse(
+-    readFileSync(path.join(environment.assetsPath, "devices.json"), "utf8"),
+-  );
+-
+-  let user: PresetFile | undefined;
+-  if (existsSync(USER_PRESET_PATH)) {
+-    try {
+-      user = JSON.parse(readFileSync(USER_PRESET_PATH, "utf8"));
+-    } catch {
+-      // unreadable user file: fall back to built-ins rather than breaking every command
+-    }
++function readUserFile(filePath: string): PresetFile | undefined {
++  if (!existsSync(filePath)) return undefined;
++  try {
++    return JSON.parse(readFileSync(filePath, "utf8"));
++  } catch {
++    // unreadable user file: fall back to built-ins rather than breaking every command
++    return undefined;
+   }
++}
++
++function migrateLegacyPresets(): void {
++  if (existsSync(USER_PRESET_PATH) || !existsSync(LEGACY_PRESET_PATH)) return;
++  try {
++    mkdirSync(path.dirname(USER_PRESET_PATH), { recursive: true });
++    writeFileSync(USER_PRESET_PATH, readFileSync(LEGACY_PRESET_PATH));
++  } catch {
++    // migration is best-effort; load will still read the legacy path below
++  }
++}
++
++export function loadPresets(): { presets: Preset[]; cycle: string[]; fileCycle?: string[] } {
++  const bundled: PresetFile = JSON.parse(readFileSync(path.join(environment.assetsPath, "devices.json"), "utf8"));
++
++  migrateLegacyPresets();
++  const user = readUserFile(USER_PRESET_PATH) ?? readUserFile(LEGACY_PRESET_PATH);
+ 
+   const byId = new Map<string, Preset>();
+   for (const p of Array.isArray(bundled.presets) ? bundled.presets : []) {
+@@ -78,15 +92,22 @@ export function loadPresets(): { presets: Preset[]; cycle: string[]; fileCycle?:
+   };
+ }
+ 
++/** Ensure the support-folder presets file exists so Action.Open can reveal it. */
++export function ensureUserPresetFile(): string {
++  migrateLegacyPresets();
++  if (!existsSync(USER_PRESET_PATH)) {
++    mkdirSync(path.dirname(USER_PRESET_PATH), { recursive: true });
++    writeFileSync(USER_PRESET_PATH, JSON.stringify({ version: 1, presets: [] }, null, 2) + "\n");
++  }
++  return USER_PRESET_PATH;
++}
++
+ export function saveUserPreset(preset: Preset): void {
++  migrateLegacyPresets();
+   let file: PresetFile = { version: 1, presets: [] };
+-  if (existsSync(USER_PRESET_PATH)) {
+-    try {
+-      file = JSON.parse(readFileSync(USER_PRESET_PATH, "utf8"));
+-    } catch {
+-      // overwrite a corrupt file rather than crash
+-    }
+-  }
++  const existingFile = readUserFile(USER_PRESET_PATH) ?? readUserFile(LEGACY_PRESET_PATH);
++  if (existingFile) file = existingFile;
++
+   const existing = Array.isArray(file.presets) ? file.presets : [];
+   file.presets = [...existing.filter((p) => p?.id !== preset.id), preset];
+   mkdirSync(path.dirname(USER_PRESET_PATH), { recursive: true });
+@@ -95,5 +116,5 @@ export function saveUserPreset(preset: Preset): void {
+ 
+ export function presetDeeplink(preset: Preset): string {
+   const args = encodeURIComponent(JSON.stringify({ preset: preset.id }));
+-  return `raycast://extensions/ali_reza_mohammad_poor/resize/apply-preset?arguments=${args}`;
++  return `raycast://extensions/ali_reza_mohammad_poor/chrome-viewport/apply-preset?arguments=${args}`;
+ }
+diff --git a/extensions/resize/src/resize-to-preset.tsx b/extensions/chrome-viewport/src/resize-to-preset.tsx
+similarity index 59%
+rename from extensions/resize/src/resize-to-preset.tsx
+rename to extensions/chrome-viewport/src/resize-to-preset.tsx
+index 2e5f40903..678e52ca1 100644
+--- a/extensions/resize/src/resize-to-preset.tsx
++++ b/extensions/chrome-viewport/src/resize-to-preset.tsx
+@@ -1,6 +1,7 @@
+-import { Action, ActionPanel, Detail, Icon, List, Keyboard } from "@raycast/api";
++import { Action, ActionPanel, Detail, Icon, List, Keyboard, open } from "@raycast/api";
++import { usePromise } from "@raycast/utils";
+ import { openDeviceMode } from "./devtools";
+-import { loadPresets, presetDeeplink, USER_PRESET_PATH } from "./presets";
++import { ensureUserPresetFile, loadPresets, presetDeeplink } from "./presets";
+ import { applyAndNotify } from "./resize";
+ import { Preset, PresetClass } from "./types";
+ 
+@@ -12,19 +13,32 @@ const SECTIONS: { class: PresetClass; title: string }[] = [
+ ];
+ 
+ export default function Command() {
+-  const { presets } = loadPresets();
++  const { data, error, isLoading } = usePromise(async () => loadPresets(), []);
++  const presets = data?.presets ?? [];
+ 
+   return (
+-    <List searchBarPlaceholder="Search device presets…">
+-      {SECTIONS.map((s) => (
+-        <List.Section key={s.class} title={s.title}>
+-          {presets
+-            .filter((p) => p.class === s.class)
+-            .map((p) => (
+-              <PresetItem key={p.id} preset={p} />
+-            ))}
+-        </List.Section>
+-      ))}
++    <List searchBarPlaceholder="Search device presets…" isLoading={isLoading}>
++      {error ? (
++        <List.EmptyView icon={Icon.Warning} title="Couldn't load presets" description={error.message} />
++      ) : !isLoading && presets.length === 0 ? (
++        <List.EmptyView
++          icon={Icon.AppWindow}
++          title="No presets"
++          description="Built-in device data is missing. Reinstall the extension or add a custom preset."
++        />
++      ) : (
++        SECTIONS.map((s) => {
++          const items = presets.filter((p) => p.class === s.class);
++          if (items.length === 0) return null;
++          return (
++            <List.Section key={s.class} title={s.title}>
++              {items.map((p) => (
++                <PresetItem key={p.id} preset={p} />
++              ))}
++            </List.Section>
++          );
++        })
++      )}
+     </List>
+   );
+ }
+@@ -43,20 +57,12 @@ function PresetItem({ preset: p }: { preset: Preset }) {
+       actions={
+         <ActionPanel>
+           {isInfo ? (
+-            <Action.Push
+-              title="Show Device Info"
+-              icon={Icon.Info}
+-              target={<InfoDetail preset={p} />}
+-            />
++            <Action.Push title="Show Device Info" icon={Icon.Info} target={<InfoDetail preset={p} />} />
+           ) : (
+             <Action title="Apply Preset" icon={Icon.AppWindow} onAction={() => applyAndNotify(p)} />
+           )}
+           {!isInfo && p.warnings.length > 0 && (
+-            <Action.Push
+-              title="Show Device Info"
+-              icon={Icon.Info}
+-              target={<InfoDetail preset={p} />}
+-            />
++            <Action.Push title="Show Device Info" icon={Icon.Info} target={<InfoDetail preset={p} />} />
+           )}
+           {(isInfo || p.class === "phone") && (
+             <Action
+@@ -72,12 +78,13 @@ function PresetItem({ preset: p }: { preset: Preset }) {
+           />
+           <Action.CreateQuicklink
+             title="Create Hotkey Quicklink"
+-            quicklink={{ link: presetDeeplink(p), name: `Resize: ${p.name}` }}
++            quicklink={{ link: presetDeeplink(p), name: `Chrome Viewport: ${p.name}` }}
+           />
+-          <Action.Open
++          <Action
+             title="Open Custom Preset File"
+-            target={USER_PRESET_PATH}
++            icon={Icon.Document}
+             shortcut={Keyboard.Shortcut.Common.Open}
++            onAction={() => open(ensureUserPresetFile())}
+           />
+         </ActionPanel>
+       }
+@@ -103,10 +110,7 @@ function InfoDetail({ preset: p }: { preset: Preset }) {
+             icon={Icon.Mobile}
+             onAction={() => openDeviceMode(p.name, p.viewport)}
+           />
+-          <Action.CopyToClipboard
+-            title="Copy Dimensions"
+-            content={`${p.viewport.w}x${p.viewport.h}`}
+-          />
++          <Action.CopyToClipboard title="Copy Dimensions" content={`${p.viewport.w}x${p.viewport.h}`} />
+         </ActionPanel>
+       }
+     />
+diff --git a/extensions/resize/src/resize.ts b/extensions/chrome-viewport/src/resize.ts
+similarity index 89%
+rename from extensions/resize/src/resize.ts
+rename to extensions/chrome-viewport/src/resize.ts
+index d3479181c..39953e842 100644
+--- a/extensions/resize/src/resize.ts
++++ b/extensions/chrome-viewport/src/resize.ts
+@@ -1,7 +1,7 @@
+ import { getPreferenceValues, showHUD } from "@raycast/api";
+ import { showFailureToast } from "@raycast/utils";
+ import { measure, setBounds } from "./chrome";
+-import { openDeviceMode } from "./devtools";
++import { closeDeviceModeIfNeeded, openDeviceMode } from "./devtools";
+ import { Preset } from "./types";
+ 
+ export type ApplyResult =
+@@ -63,6 +63,10 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
+     return;
+   }
+ 
++  // Leaving a DevTools phone handoff: close the panel first so chrome-delta
++  // measurement isn't poisoned by the ~620px dock (Cycle MBP step after iPhone).
++  await closeDeviceModeIfNeeded();
++
+   try {
+     const r = await applyPreset(p);
+     if (r.kind === "info") {
+@@ -76,9 +80,7 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
+       ? "✓"
+       : `(requested ${r.requested.w}×${r.requested.h}${r.clamped ? ", clamped to display" : ""})`;
+     const caveat = p.pointer === "coarse" ? " · geometry only" : "";
+-    await showHUD(
+-      `${prefix}${p.name} — viewport ${r.achieved.w}×${r.achieved.h} ${suffix}${caveat}`,
+-    );
++    await showHUD(`${prefix}${p.name} — viewport ${r.achieved.w}×${r.achieved.h} ${suffix}${caveat}`);
+   } catch (e) {
+     await showFailureToast(e, { title: "Resize failed" });
+   }
+diff --git a/extensions/resize/src/types.ts b/extensions/chrome-viewport/src/types.ts
+similarity index 100%
+rename from extensions/resize/src/types.ts
+rename to extensions/chrome-viewport/src/types.ts
+diff --git a/extensions/resize/tsconfig.json b/extensions/chrome-viewport/tsconfig.json
+similarity index 100%
+rename from extensions/resize/tsconfig.json
+rename to extensions/chrome-viewport/tsconfig.json
+diff --git a/extensions/resize/.prettierrc b/extensions/resize/.prettierrc
+deleted file mode 100644
+index de753c537..000000000
+--- a/extensions/resize/.prettierrc
++++ /dev/null
+@@ -1,3 +0,0 @@
+-{
+-  "printWidth": 100
+-}
+diff --git a/extensions/resize/README.md b/extensions/resize/README.md
+deleted file mode 100644
+index 1033b5b18..000000000
+--- a/extensions/resize/README.md
++++ /dev/null
+@@ -1,52 +0,0 @@
+-# Resize
+-
+-Raycast extension: viewport-accurate Chrome window presets for responsive dev. Full design in [SPEC.md](SPEC.md).
+-
+-- Presets follow the **Chrome DevTools contract**: viewport = device dimensions (iPad Air → 820×1180).
+-- The local Chrome window's own UI is **measured live** (never guessed), so the *viewport* — not the outer window — hits the preset numbers exactly. Bookmarks bar, scrollbar mode, zoom all handled.
+-- **Works with DevTools open.** Because it targets the measured viewport, a docked DevTools panel is absorbed automatically — the window grows to keep the viewport exact instead of shrinking it. (The window needs room for viewport + panel, so a large preset may clamp on a laptop display; on an external monitor there's headroom.)
+-- All presets resize for real — programmatic bounds bypass Chrome's drag minimum, so even 320–440px phone widths work. Phone/iPad HUDs say "geometry only" (touch, DPR 3, dvh, safe areas still need a device or DevTools). A **Phone Presets** preference can route iPhone presets to DevTools device mode instead.
+-
+-## Install (from source)
+-
+-```bash
+-git clone https://github.com/alirezamohammadpoor/raycast-resize
+-cd raycast-resize
+-npm install && npm run dev   # imports into Raycast, persists after you stop it
+-```
+-
+-## Setup
+-
+-1. Install from source as above (until the Raycast Store version lands).
+-2. Chrome → **View → Developer → Allow JavaScript from Apple Events** (one-time; needed to measure the viewport).
+-3. First resize prompts macOS to allow Raycast to control Chrome — accept.
+-
+-## Permissions & how it works
+-
+-The extension drives Chrome exclusively through Chrome's own AppleScript dictionary — no Accessibility API for resizing.
+-
+-| Permission | Used for | When asked |
+-|---|---|---|
+-| Chrome: "Allow JavaScript from Apple Events" | Reading `innerWidth`/`innerHeight`/`devicePixelRatio` to measure the window chrome live | Manual one-time toggle (Chrome blocks programmatic enabling by design) |
+-| macOS Automation: Raycast → Google Chrome | `get/set bounds`, `execute javascript` | System prompt on first resize |
+-| macOS Accessibility (Raycast) | Only the optional DevTools handoff (sends ⌥⌘I + ⌘⇧M via System Events) | Only if you use DevTools mode |
+-
+-The resize loop: measure viewport → compute chrome delta (bounds − inner) → set bounds = target + delta → re-measure → correct once. Zoom ≠ 100% aborts with a warning (CSS px would not equal points). Presets that don't fit the display clamp height and say so in the HUD.
+-
+-## Commands
+-
+-| Command | Use |
+-|---|---|
+-| Resize to Preset | Searchable device list; ⏎ resizes, `⌘C` copies dims, quicklink action creates a per-preset hotkey |
+-| Cycle Breakpoints | Bind to a hotkey (e.g. `⌥⌘R`), hit repeatedly to step through pinned widths |
+-| Apply Preset | No-view command with an argument — the target for Quicklink hotkeys |
+-| Add Custom Preset | Saves to `~/.config/resize/presets.json` |
+-| Measure Viewport | Diagnostic: viewport vs window bounds, chrome delta, zoom state |
+-
+-## Custom presets
+-
+-`~/.config/resize/presets.json` — hand-editable, dotfiles-friendly, merges over built-ins by `id`.
+-
+-## Cycle configuration
+-
+-The rotation is three dropdown slots in extension settings (⌘⇧, on any Resize command). A `cycle` array in `~/.config/resize/presets.json` overrides the slots — use it for more than 3 steps or to include custom presets. The hotkey itself is bound in Raycast: Configure Command → Hotkey.
+diff --git a/extensions/resize/SPEC.md b/extensions/resize/SPEC.md
+deleted file mode 100644
+index 06a910a6d..000000000
+--- a/extensions/resize/SPEC.md
++++ /dev/null
+@@ -1,109 +0,0 @@
+-# resize — viewport-accurate window presets for responsive dev
+-
+-Raycast extension (v1). Chrome-only. Resizes the frontmost Chrome window so the **browser viewport** — not the outer window — matches a target device's effective viewport. Honest about what a window resize cannot simulate.
+-
+-Future: port the proven preset logic to a Glaze/native app ("v2"), reading the same preset file.
+-
+-## Goal
+-
+-One keystroke to see a layout at the viewport a real MBP 14 / MBP 16 / iPad user sees, while developing on an external monitor in clamshell mode.
+-
+-## Non-goals (v1)
+-
+-- Simulating touch, `pointer: coarse`, `hover: none`, DPR 3, safe areas, `dvh`/URL-bar collapse, on-screen keyboard. Window resizing cannot do these; the tool never pretends it can (phone/iPad HUDs say "geometry only").
+-- Browsers other than Chrome. (Arc/Safari later; the algorithm is per-browser scripting, the data is shared.)
+-
+-Note: Chrome's ~500px minimum window width applies only to *drag*-resizing — programmatic `set bounds` goes as low as 200px with exact `innerWidth` (verified empirically on Chrome 150). So **all presets resize, including iPhones**. A `phoneMode` preference switches iPhone-class presets to opening DevTools device mode instead.
+-
+-## Correctness model
+-
+-A macOS window resize correctly simulates exactly one context: **CSS viewport w×h at DPR 2, fine pointer, hover-capable**. That covers MacBooks fully and iPad *geometry* (not input model). Every preset therefore declares:
+-
+-- `strategy: "window"` — the window resizes to the preset's viewport (all built-in presets)
+-- `strategy: "info"` — selecting shows device facts only, never resizes (available for custom presets)
+-
+-Phone-class presets additionally respect the `phoneMode` preference: `resize` (default) resizes the window — geometry only, honest HUD caveat — or `devtools`, which activates Chrome and opens DevTools device mode (⌥⌘I + ⌘⇧M via System Events; needs Raycast Accessibility permission).
+-
+-### DevTools parity
+-
+-Presets behave exactly like Chrome DevTools device presets: the **viewport** equals the device's stated dimensions (iPad Air → viewport 820×1180, MBP 14 → 1512×982). No subtraction of the target device's own browser chrome — same contract as DevTools, same numbers as spec sheets. The chrome that *is* subtracted (via live measurement, below) is the local Chrome window's own UI, so the viewport — not the outer window — hits the preset numbers.
+-
+-## Resize algorithm (the differentiator)
+-
+-Never guess chrome size — measure it. Pure AppleScript against Chrome, **no Accessibility permission needed**:
+-
+-1. `execute javascript` in the active tab:
+-   `JSON.stringify({iw:innerWidth, ih:innerHeight, dpr:devicePixelRatio})`
+-2. Read `bounds of front window` → chrome delta = bounds − inner (both axes).
+-3. `set bounds of front window` = target viewport + delta, keeping current x/y, clamped into the current display's visible frame.
+-4. Re-measure once; if off (fractional rounding), adjust. Converges in ≤2 iterations.
+-5. HUD: `MacBook Pro 14 — viewport 1512×982 ✓`
+-
+-### Guards
+-
+-- **Zoom:** on Retina, `devicePixelRatio` = 2.0 at 100% zoom. If `dpr % 2 !== 0` → warn "Chrome zoom is not 100% — CSS px ≠ points" and abort (resizing would hit wrong breakpoints).
+-- **Scrollbars:** media queries evaluate against `innerWidth` *including* scrollbar — which is what we measure. Overlay (trackpad) vs always-on 15px (external mouse / clamshell) is therefore handled automatically.
+-- **Doesn't fit** (e.g. iPad portrait 1376 tall on a 982pt laptop display): clamp height to available, keep width exact, HUD warns `height clamped 940/1376 — fold & dvh not representative`.
+-- **JS-from-Apple-Events disabled:** detect the AppleScript error, show one-time setup instruction (Chrome → View → Developer → Allow JavaScript from Apple Events).
+-- **No Chrome window / Chrome not frontmost:** clear error, no silent fallback.
+-
+-## Commands
+-
+-| Command | Behavior |
+-|---|---|
+-| **Resize to Preset** | Searchable list of all presets grouped by class (Laptop / iPad / iPhone / Custom). Enter applies (or shows info card for `info` presets). Each item exposes a deeplink → per-preset hotkeys via Raycast Quicklinks. |
+-| **Cycle Breakpoints** | No-view command on a repeatable hotkey. Rotation is set by three dropdown slots in extension settings (default trio: MBP 14 → iPad portrait → iPhone; slots can be skipped). HUD shows position: `2/3 · iPad Air 11 · 820×1180`. State in LocalStorage, resets after 60s idle. A `cycle` array in `~/.config/resize/presets.json` overrides the slots — the way to get >3 steps or custom presets into the rotation. Hotkey binding itself is native Raycast (Configure Command). |
+-| **Add Custom Preset** | Form (name, viewport w×h, class, note) → appends to the user preset file. |
+-| **Measure Viewport** | Diagnostic: shows current inner size, outer bounds, chrome delta, DPR/zoom. |
+-
+-### Hotkey model
+-
+-- Primary: **cycle hotkey** (suggest ⌥⌘R) — hit repeatedly, watch the layout reflow.
+-- Secondary: per-preset Quicklink hotkeys for favorites (⌥⌘1 = MBP 14, ⌥⌘2 = iPad, …).
+-
+-## Preset data
+-
+-Built-ins ship in `assets/devices.json`. User presets live in **`~/.config/resize/presets.json`** (hand-editable, dotfiles-versionable, survives Raycast reinstalls, shared 1:1 with the future Glaze port). User file merges over built-ins by `id`; the `cycle` array in the user file, if present, replaces the default.
+-
+-Schema (per preset):
+-
+-```jsonc
+-{
+-  "id": "mbp14",
+-  "name": "MacBook Pro 14\"",
+-  "class": "laptop",              // laptop | tablet | phone | custom
+-  "viewport": { "w": 1512, "h": 982 },  // = device dimensions, DevTools parity
+-  "basis": "screen",              // screen | split | custom
+-  "dpr": 2,
+-  "pointer": "fine",              // fine | coarse
+-  "hover": true,
+-  "strategy": "window",           // window | info
+-  "warnings": []                   // shown in HUD/info card
+-}
+-```
+-
+-## What each device class means (reference)
+-
+-**Laptop (fully simulatable):** hover + fine pointer, DPR 2 — identical to the test context. Only gotcha is scrollbar overlay vs always-on; handled by measurement.
+-
+-**iPad (geometry only):** DPR 2 matches; UA accidentally matches (iPadOS Safari sends desktop UA). NOT simulated: `hover: none` / `pointer: coarse` (menus that need hover will look fine here and break on device), sticky-hover double-tap, 44pt touch targets, safe-area insets, rubber-band scroll. iPad is a **range**: Split View/Stage Manager go down to 320pt — split presets included.
+-
+-**iPhone (info only):** DPR 3 (hairlines/images differ), `dvh` vs collapsing URL bar, keyboard vs `visualViewport`, `position: fixed` quirks, 16px input auto-zoom, Dynamic Island/landscape safe areas, tap highlight, no hover. Info card lists these as a per-device test checklist + DevTools shortcut.
+-
+-## Verification plan
+-
+-1. `Measure Viewport` vs Chrome DevTools' displayed viewport size — must match exactly.
+-2. Apply MBP 14 preset, run `window.innerWidth/innerHeight` manually → 1512×982.
+-3. Apply iPad Air preset, compare against DevTools' built-in iPad Air preset → identical numbers.
+-4. Toggle bookmarks bar / always-on scrollbars, re-apply → still exact (measurement, not constants).
+-5. Set zoom 110% → tool warns and aborts.
+-6. iPad portrait preset on laptop display → width exact, clamp warning shown.
+-
+-## Milestones
+-
+-1. **Scaffold** — `create-raycast-extension`, TypeScript, commands stubbed.
+-2. **Core** — AppleScript bridge (measure/set/re-measure), Resize to Preset with built-in data.
+-3. **Flow** — Cycle Breakpoints + hotkeys, clamp/zoom/setup guards, HUD copy.
+-4. **Custom** — `~/.config/resize/presets.json` read/merge + Add Custom Preset form.
+-5. **Verify** — plan above (DevTools parity checks).
+-6. **Later** — publish to Raycast store (needs differentiation writeup vs Window Sizer: viewport-accuracy + effective-viewport presets + honesty model); Glaze/native port reading the same preset file.
+diff --git a/extensions/resize/src/devtools.ts b/extensions/resize/src/devtools.ts
+deleted file mode 100644
+index edf4f2baa..000000000
+--- a/extensions/resize/src/devtools.ts
++++ /dev/null
+@@ -1,45 +0,0 @@
+-import { closeMainWindow, showHUD } from "@raycast/api";
+-import { runAppleScript, showFailureToast } from "@raycast/utils";
+-import { measure, setBounds } from "./chrome";
+-
+-// Width reserved for a right-docked DevTools panel so the emulated device
+-// renders at 100% scale without shrinking.
+-const DEVTOOLS_DOCK = 620;
+-
+-// Chrome blocks opening DevTools programmatically except via keystrokes, so this
+-// needs Raycast's Accessibility permission (System Events). ⌥⌘I is a toggle: from a
+-// closed state it opens DevTools, then ⌘⇧M turns on device mode. AppleScript cannot
+-// read DevTools' open/closed state (it is not a separate window when docked), so if
+-// DevTools is already open the keystroke closes it — the HUD tells the user to press
+-// ⌘⇧M themselves in that case. The keystroke runs before the resize so that a missing
+-// Accessibility permission fails fast and leaves the window untouched.
+-const SCRIPT = `
+-tell application "Google Chrome" to activate
+-delay 0.3
+-tell application "System Events"
+-	keystroke "i" using {command down, option down}
+-	delay 0.5
+-	keystroke "m" using {command down, shift down}
+-end tell`;
+-
+-export async function openDeviceMode(
+-  deviceName: string,
+-  viewport?: { w: number; h: number },
+-): Promise<void> {
+-  try {
+-    await closeMainWindow();
+-    await runAppleScript(SCRIPT);
+-    if (viewport) {
+-      const m = await measure().catch(() => undefined);
+-      if (m) {
+-        const outerW = Math.min(m.avail.w, viewport.w + DEVTOOLS_DOCK);
+-        await setBounds(m.avail.left, m.avail.top, m.avail.left + outerW, m.avail.top + m.avail.h);
+-      }
+-    }
+-    await showHUD(`DevTools device mode — pick “${deviceName}” (⌘⇧M if DevTools was already open)`);
+-  } catch (e) {
+-    await showFailureToast(e, {
+-      title: "Couldn't open DevTools — Raycast may need Accessibility permission",
+-    });
+-  }
+-}
+-- 
+2.43.0
+
