@@ -18,7 +18,8 @@ cd "$WORKDIR/repo"
 git sparse-checkout set extensions/resize extensions/chrome-viewport
 git reset --hard 0d6065693ebab1da849e6f452ae9c37013ad6714
 git apply "$PATCH"
-git commit -am "feat: rebrand as Chrome Viewport for standalone store submission"
+git add -A
+git commit -m "feat: Chrome Viewport standalone + DevTools cycle fix"
 git push origin HEAD:ext/resize
 
 gh pr comment 29803 --repo raycast/extensions --body-file "$REPLY"
