@@ -1,12 +1,8 @@
-From 02864f651582e2b21bdfcf8fae7093d625856bd6 Mon Sep 17 00:00:00 2001
+From 6f48396d18fa65d12b74bcbe46e1ee2d8f2e4b9c Mon Sep 17 00:00:00 2001
 From: Cursor Agent <cursoragent@cursor.com>
-Date: Wed, 9 Sep 2026 04:37:55 +0000
-Subject: [PATCH] feat: rebrand as Chrome Viewport for standalone store
- submission
+Date: Mon, 14 Sep 2026 13:34:47 +0000
+Subject: [PATCH] feat: Chrome Viewport standalone + DevTools cycle fix
 
-Address review feedback: rename from generic Resize, drop SPEC.md,
-store-ready README, presets in supportPath, List.EmptyView + safe
-preset loading, and fail DevTools handoff without a false success HUD.
 ---
  .../{resize => chrome-viewport}/.gitignore    |   0
  extensions/chrome-viewport/.prettierrc        |   4 +
@@ -24,17 +20,19 @@ preset loading, and fail DevTools handoff without a false success HUD.
  .../src/apply-preset.ts                       |   3 +-
  .../{resize => chrome-viewport}/src/chrome.ts |   7 +-
  .../src/cycle-breakpoints.ts                  |   6 +-
- .../src/devtools.ts                           |  27 +++--
+ .../chrome-viewport/src/devtools-geometry.ts  |  34 ++++++
+ extensions/chrome-viewport/src/devtools.ts    |  83 +++++++++++++
  .../src/measure-viewport.tsx                  |   6 +-
  .../src/presets.ts                            |  71 ++++++++----
  .../src/resize-to-preset.tsx                  |  64 +++++-----
- .../{resize => chrome-viewport}/src/resize.ts |   4 +-
+ .../{resize => chrome-viewport}/src/resize.ts |  10 +-
  .../{resize => chrome-viewport}/src/types.ts  |   0
  .../{resize => chrome-viewport}/tsconfig.json |   0
  extensions/resize/.prettierrc                 |   3 -
  extensions/resize/README.md                   |  52 ---------
  extensions/resize/SPEC.md                     | 109 ------------------
- 26 files changed, 173 insertions(+), 259 deletions(-)
+ extensions/resize/src/devtools.ts             |  45 --------
+ 28 files changed, 277 insertions(+), 296 deletions(-)
  rename extensions/{resize => chrome-viewport}/.gitignore (100%)
  create mode 100644 extensions/chrome-viewport/.prettierrc
  rename extensions/{resize => chrome-viewport}/CHANGELOG.md (89%)
@@ -51,16 +49,18 @@ preset loading, and fail DevTools handoff without a false success HUD.
  rename extensions/{resize => chrome-viewport}/src/apply-preset.ts (80%)
  rename extensions/{resize => chrome-viewport}/src/chrome.ts (95%)
  rename extensions/{resize => chrome-viewport}/src/cycle-breakpoints.ts (85%)
- rename extensions/{resize => chrome-viewport}/src/devtools.ts (67%)
+ create mode 100644 extensions/chrome-viewport/src/devtools-geometry.ts
+ create mode 100644 extensions/chrome-viewport/src/devtools.ts
  rename extensions/{resize => chrome-viewport}/src/measure-viewport.tsx (81%)
  rename extensions/{resize => chrome-viewport}/src/presets.ts (60%)
  rename extensions/{resize => chrome-viewport}/src/resize-to-preset.tsx (59%)
- rename extensions/{resize => chrome-viewport}/src/resize.ts (96%)
+ rename extensions/{resize => chrome-viewport}/src/resize.ts (89%)
  rename extensions/{resize => chrome-viewport}/src/types.ts (100%)
  rename extensions/{resize => chrome-viewport}/tsconfig.json (100%)
  delete mode 100644 extensions/resize/.prettierrc
  delete mode 100644 extensions/resize/README.md
  delete mode 100644 extensions/resize/SPEC.md
+ delete mode 100644 extensions/resize/src/devtools.ts
 
 diff --git a/extensions/resize/.gitignore b/extensions/chrome-viewport/.gitignore
 similarity index 100%
@@ -340,44 +340,111 @@ index 84e1be189..f66564df4 100644
  
    const sequence = ids
      .map((id) => presets.find((p) => p.id === id))
-diff --git a/extensions/resize/src/devtools.ts b/extensions/chrome-viewport/src/devtools.ts
-similarity index 67%
-rename from extensions/resize/src/devtools.ts
-rename to extensions/chrome-viewport/src/devtools.ts
-index edf4f2baa..49632d9a8 100644
---- a/extensions/resize/src/devtools.ts
+diff --git a/extensions/chrome-viewport/src/devtools-geometry.ts b/extensions/chrome-viewport/src/devtools-geometry.ts
+new file mode 100644
+index 000000000..b33dffdbc
+--- /dev/null
++++ b/extensions/chrome-viewport/src/devtools-geometry.ts
+@@ -0,0 +1,34 @@
++/** Width reserved for a right-docked DevTools panel (device at 100% scale). */
++export const DEVTOOLS_DOCK = 620;
++
++export type Bounds = { x1: number; y1: number; x2: number; y2: number };
++export type Avail = { w: number; h: number; left: number; top: number };
++
++/**
++ * Ensure the window is large enough for viewport + docked DevTools.
++ * Never shrinks or jumps to the display origin — Cycle was forcing a small
++ * phone+dock frame on every phone step and yanking the window around.
++ */
++export function expandForDeviceMode(
++  bounds: Bounds,
++  avail: Avail,
++  viewport: { w: number; h: number },
++): Bounds & { changed: boolean } {
++  const curW = bounds.x2 - bounds.x1;
++  const curH = bounds.y2 - bounds.y1;
++  const needW = viewport.w + DEVTOOLS_DOCK;
++  const needH = viewport.h;
++
++  const outerW = Math.min(avail.w, Math.max(curW, needW));
++  const outerH = Math.min(avail.h, Math.max(curH, needH));
++
++  let x1 = bounds.x1;
++  let y1 = bounds.y1;
++  if (x1 + outerW > avail.left + avail.w) x1 = avail.left + avail.w - outerW;
++  if (y1 + outerH > avail.top + avail.h) y1 = avail.top + avail.h - outerH;
++  x1 = Math.max(avail.left, x1);
++  y1 = Math.max(avail.top, y1);
++
++  const changed = outerW !== curW || outerH !== curH || x1 !== bounds.x1 || y1 !== bounds.y1;
++  return { x1, y1, x2: x1 + outerW, y2: y1 + outerH, changed };
++}
+diff --git a/extensions/chrome-viewport/src/devtools.ts b/extensions/chrome-viewport/src/devtools.ts
+new file mode 100644
+index 000000000..2df07324b
+--- /dev/null
 +++ b/extensions/chrome-viewport/src/devtools.ts
-@@ -22,22 +22,31 @@ tell application "System Events"
- 	keystroke "m" using {command down, shift down}
- end tell`;
- 
--export async function openDeviceMode(
--  deviceName: string,
--  viewport?: { w: number; h: number },
--): Promise<void> {
+@@ -0,0 +1,83 @@
++import { closeMainWindow, LocalStorage, showHUD } from "@raycast/api";
++import { runAppleScript, showFailureToast } from "@raycast/utils";
++import { measure, setBounds } from "./chrome";
++import { expandForDeviceMode } from "./devtools-geometry";
++
++export { DEVTOOLS_DOCK, expandForDeviceMode } from "./devtools-geometry";
++
++/** Set while we believe DevTools device mode is open from our handoff. */
++export const DT_HANDOFF_KEY = "devtools-handoff-active";
++
++// Chrome blocks opening DevTools programmatically except via keystrokes, so this
++// needs Raycast's Accessibility permission (System Events). ⌥⌘I and ⌘⇧M are both
++// toggles — we track handoff state in LocalStorage so repeat Cycle presses don't
++// close DevTools / flip device mode off.
++const OPEN_SCRIPT = `
++tell application "Google Chrome" to activate
++delay 0.3
++tell application "System Events"
++	keystroke "i" using {command down, option down}
++	delay 0.5
++	keystroke "m" using {command down, shift down}
++end tell`;
++
++const CLOSE_SCRIPT = `
++tell application "Google Chrome" to activate
++delay 0.2
++tell application "System Events"
++	keystroke "i" using {command down, option down}
++end tell`;
++
 +export async function openDeviceMode(deviceName: string, viewport?: { w: number; h: number }): Promise<void> {
 +  let previousBounds: { x1: number; y1: number; x2: number; y2: number } | undefined;
 +
-   try {
-     await closeMainWindow();
-     await runAppleScript(SCRIPT);
++  try {
++    await closeMainWindow();
 +
-     if (viewport) {
--      const m = await measure().catch(() => undefined);
--      if (m) {
--        const outerW = Math.min(m.avail.w, viewport.w + DEVTOOLS_DOCK);
--        await setBounds(m.avail.left, m.avail.top, m.avail.left + outerW, m.avail.top + m.avail.h);
--      }
++    const alreadyOpen = (await LocalStorage.getItem<string>(DT_HANDOFF_KEY)) === "1";
++    if (!alreadyOpen) {
++      await runAppleScript(OPEN_SCRIPT);
++      await LocalStorage.setItem(DT_HANDOFF_KEY, "1");
++    }
++
++    if (viewport) {
 +      // Measurement must succeed for a complete handoff — never report success
-+      // after swallowing a measure failure (store review feedback).
++      // after a swallowed measure failure (store review feedback).
 +      const m = await measure();
 +      previousBounds = m.bounds;
-+      const outerW = Math.min(m.avail.w, viewport.w + DEVTOOLS_DOCK);
-+      await setBounds(m.avail.left, m.avail.top, m.avail.left + outerW, m.avail.top + m.avail.h);
-     }
++      const next = expandForDeviceMode(m.bounds, m.avail, viewport);
++      if (next.changed) {
++        await setBounds(next.x1, next.y1, next.x2, next.y2);
++      }
++    }
 +
-     await showHUD(`DevTools device mode — pick “${deviceName}” (⌘⇧M if DevTools was already open)`);
-   } catch (e) {
++    await showHUD(
++      alreadyOpen
++        ? `DevTools device mode — pick “${deviceName}”`
++        : `DevTools device mode — pick “${deviceName}” (⌘⇧M if DevTools was already open)`,
++    );
++  } catch (e) {
 +    if (previousBounds) {
 +      try {
 +        await setBounds(previousBounds.x1, previousBounds.y1, previousBounds.x2, previousBounds.y2);
@@ -385,9 +452,23 @@ index edf4f2baa..49632d9a8 100644
 +        // best-effort restore
 +      }
 +    }
-     await showFailureToast(e, {
-       title: "Couldn't open DevTools — Raycast may need Accessibility permission",
-     });
++    await showFailureToast(e, {
++      title: "Couldn't open DevTools — Raycast may need Accessibility permission",
++    });
++  }
++}
++
++/** Close DevTools if we previously opened them via handoff, so window resizes measure clean chrome. */
++export async function closeDeviceModeIfNeeded(): Promise<void> {
++  const active = (await LocalStorage.getItem<string>(DT_HANDOFF_KEY)) === "1";
++  if (!active) return;
++  try {
++    await runAppleScript(CLOSE_SCRIPT);
++  } catch {
++    // still clear the flag so we don't skip opens forever
++  }
++  await LocalStorage.removeItem(DT_HANDOFF_KEY);
++}
 diff --git a/extensions/resize/src/measure-viewport.tsx b/extensions/chrome-viewport/src/measure-viewport.tsx
 similarity index 81%
 rename from extensions/resize/src/measure-viewport.tsx
@@ -640,13 +721,33 @@ index 2e5f40903..678e52ca1 100644
        }
      />
 diff --git a/extensions/resize/src/resize.ts b/extensions/chrome-viewport/src/resize.ts
-similarity index 96%
+similarity index 89%
 rename from extensions/resize/src/resize.ts
 rename to extensions/chrome-viewport/src/resize.ts
-index d3479181c..db5a7f593 100644
+index d3479181c..39953e842 100644
 --- a/extensions/resize/src/resize.ts
 +++ b/extensions/chrome-viewport/src/resize.ts
-@@ -76,9 +76,7 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
+@@ -1,7 +1,7 @@
+ import { getPreferenceValues, showHUD } from "@raycast/api";
+ import { showFailureToast } from "@raycast/utils";
+ import { measure, setBounds } from "./chrome";
+-import { openDeviceMode } from "./devtools";
++import { closeDeviceModeIfNeeded, openDeviceMode } from "./devtools";
+ import { Preset } from "./types";
+ 
+ export type ApplyResult =
+@@ -63,6 +63,10 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
+     return;
+   }
+ 
++  // Leaving a DevTools phone handoff: close the panel first so chrome-delta
++  // measurement isn't poisoned by the ~620px dock (Cycle MBP step after iPhone).
++  await closeDeviceModeIfNeeded();
++
+   try {
+     const r = await applyPreset(p);
+     if (r.kind === "info") {
+@@ -76,9 +80,7 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
        ? "✓"
        : `(requested ${r.requested.w}×${r.requested.h}${r.clamped ? ", clamped to display" : ""})`;
      const caveat = p.pointer === "coarse" ? " · geometry only" : "";
@@ -847,6 +948,57 @@ index 06a910a6d..000000000
 -4. **Custom** — `~/.config/resize/presets.json` read/merge + Add Custom Preset form.
 -5. **Verify** — plan above (DevTools parity checks).
 -6. **Later** — publish to Raycast store (needs differentiation writeup vs Window Sizer: viewport-accuracy + effective-viewport presets + honesty model); Glaze/native port reading the same preset file.
+diff --git a/extensions/resize/src/devtools.ts b/extensions/resize/src/devtools.ts
+deleted file mode 100644
+index edf4f2baa..000000000
+--- a/extensions/resize/src/devtools.ts
++++ /dev/null
+@@ -1,45 +0,0 @@
+-import { closeMainWindow, showHUD } from "@raycast/api";
+-import { runAppleScript, showFailureToast } from "@raycast/utils";
+-import { measure, setBounds } from "./chrome";
+-
+-// Width reserved for a right-docked DevTools panel so the emulated device
+-// renders at 100% scale without shrinking.
+-const DEVTOOLS_DOCK = 620;
+-
+-// Chrome blocks opening DevTools programmatically except via keystrokes, so this
+-// needs Raycast's Accessibility permission (System Events). ⌥⌘I is a toggle: from a
+-// closed state it opens DevTools, then ⌘⇧M turns on device mode. AppleScript cannot
+-// read DevTools' open/closed state (it is not a separate window when docked), so if
+-// DevTools is already open the keystroke closes it — the HUD tells the user to press
+-// ⌘⇧M themselves in that case. The keystroke runs before the resize so that a missing
+-// Accessibility permission fails fast and leaves the window untouched.
+-const SCRIPT = `
+-tell application "Google Chrome" to activate
+-delay 0.3
+-tell application "System Events"
+-	keystroke "i" using {command down, option down}
+-	delay 0.5
+-	keystroke "m" using {command down, shift down}
+-end tell`;
+-
+-export async function openDeviceMode(
+-  deviceName: string,
+-  viewport?: { w: number; h: number },
+-): Promise<void> {
+-  try {
+-    await closeMainWindow();
+-    await runAppleScript(SCRIPT);
+-    if (viewport) {
+-      const m = await measure().catch(() => undefined);
+-      if (m) {
+-        const outerW = Math.min(m.avail.w, viewport.w + DEVTOOLS_DOCK);
+-        await setBounds(m.avail.left, m.avail.top, m.avail.left + outerW, m.avail.top + m.avail.h);
+-      }
+-    }
+-    await showHUD(`DevTools device mode — pick “${deviceName}” (⌘⇧M if DevTools was already open)`);
+-  } catch (e) {
+-    await showFailureToast(e, {
+-      title: "Couldn't open DevTools — Raycast may need Accessibility permission",
+-    });
+-  }
+-}
 -- 
 2.43.0
 
