@@ -52,7 +52,7 @@ git add -A
 git -c user.name="Ali" -c user.email="alirezamohammadp@gmail.com" \
   commit -m "feat: Chrome Viewport standalone + DevTools cycle fix"
 
-echo "Pushing to ext/resize as $LOGIN…"
+echo "Pushing to ext/resize as ${LOGIN}..."
 git push origin HEAD:ext/resize
 
 gh pr comment 29803 --repo raycast/extensions --body-file "$REPLY"
