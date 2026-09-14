@@ -1,7 +1,7 @@
 import { getPreferenceValues, showHUD } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
 import { measure, setBounds } from "./chrome";
-import { openDeviceMode } from "./devtools";
+import { closeDeviceModeIfNeeded, openDeviceMode } from "./devtools";
 import { Preset } from "./types";
 
 export type ApplyResult =
@@ -62,6 +62,10 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
     await openDeviceMode(p.name, p.viewport);
     return;
   }
+
+  // Leaving a DevTools phone handoff: close the panel first so chrome-delta
+  // measurement isn't poisoned by the ~620px dock (Cycle MBP step after iPhone).
+  await closeDeviceModeIfNeeded();
 
   try {
     const r = await applyPreset(p);
