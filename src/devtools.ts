@@ -1,43 +1,85 @@
 import { closeMainWindow, LocalStorage, showHUD } from "@raycast/api";
 import { runAppleScript, showFailureToast } from "@raycast/utils";
+import { getBrowser } from "./browser";
 import { measure, setBounds } from "./chrome";
 import { expandForDeviceMode } from "./devtools-geometry";
 
 export { DEVTOOLS_DOCK, expandForDeviceMode } from "./devtools-geometry";
 
-/** Set while we believe DevTools device mode is open from our handoff. */
+/** Set only after we opened DevTools ourselves and then verified it is open. */
 export const DT_HANDOFF_KEY = "devtools-handoff-active";
 
-// Chrome blocks opening DevTools programmatically except via keystrokes, so this
-// needs Raycast's Accessibility permission (System Events). ⌥⌘I and ⌘⇧M are both
-// toggles — we track handoff state in LocalStorage so repeat Cycle presses don't
-// close DevTools / flip device mode off.
-const OPEN_SCRIPT = `
-tell application "Google Chrome" to activate
-delay 0.3
+type DevToolsState = "open" | "closed" | "unknown";
+
+// The browser blocks opening DevTools programmatically except via keystrokes, so
+// this needs Raycast's Accessibility permission (System Events). ⌥⌘I is a toggle,
+// so we never send it on a remembered flag alone: we read the checkmark on the
+// View → Developer → Developer Tools menu item first and act on that.
+const stateScript = (app: string) => `
+tell application "${app}" to activate
+delay 0.2
+tell application "System Events"
+	if not (exists process "${app}") then return "unknown"
+	tell process "${app}"
+		repeat with top in menu bar items of menu bar 1
+			try
+				repeat with sub in menu items of menu 1 of top
+					try
+						set mi to menu item "Developer Tools" of menu 1 of sub
+						set mark to value of attribute "AXMenuItemMarkChar" of mi
+						if mark is missing value or mark is "" then return "closed"
+						return "open"
+					end try
+				end repeat
+			end try
+		end repeat
+	end tell
+end tell
+return "unknown"`;
+
+const OPEN_KEYS = `
 tell application "System Events"
 	keystroke "i" using {command down, option down}
 	delay 0.5
 	keystroke "m" using {command down, shift down}
 end tell`;
 
-const CLOSE_SCRIPT = `
-tell application "Google Chrome" to activate
-delay 0.2
+const TOGGLE_DEVTOOLS_KEYS = `
 tell application "System Events"
 	keystroke "i" using {command down, option down}
 end tell`;
 
+async function devToolsState(): Promise<DevToolsState> {
+  try {
+    const out = (await runAppleScript(stateScript(getBrowser().app))).trim();
+    return out === "open" || out === "closed" ? out : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 export async function openDeviceMode(deviceName: string, viewport?: { w: number; h: number }): Promise<void> {
+  const { label } = getBrowser();
   let previousBounds: { x1: number; y1: number; x2: number; y2: number } | undefined;
 
   try {
     await closeMainWindow();
 
-    const alreadyOpen = (await LocalStorage.getItem<string>(DT_HANDOFF_KEY)) === "1";
-    if (!alreadyOpen) {
-      await runAppleScript(OPEN_SCRIPT);
-      await LocalStorage.setItem(DT_HANDOFF_KEY, "1");
+    // A remembered flag can be stale (DevTools closed by hand), so drop it and
+    // re-derive everything from the real menu state.
+    await LocalStorage.removeItem(DT_HANDOFF_KEY);
+    const before = await devToolsState();
+    if (before === "unknown") {
+      throw new Error(`Couldn't read ${label}'s Developer Tools state — check Raycast's Accessibility permission`);
+    }
+
+    let openedByUs = false;
+    if (before === "closed") {
+      await runAppleScript(OPEN_KEYS);
+      if ((await devToolsState()) !== "open") {
+        throw new Error(`${label} DevTools didn't open`);
+      }
+      openedByUs = true;
     }
 
     if (viewport) {
@@ -51,10 +93,14 @@ export async function openDeviceMode(deviceName: string, viewport?: { w: number;
       }
     }
 
+    if (openedByUs) await LocalStorage.setItem(DT_HANDOFF_KEY, "1");
+
+    // ⌘⇧M (device toolbar) has no readable menu state, so when DevTools was
+    // already open we leave it alone rather than risk toggling it off.
     await showHUD(
-      alreadyOpen
+      openedByUs
         ? `DevTools device mode — pick “${deviceName}”`
-        : `DevTools device mode — pick “${deviceName}” (⌘⇧M if DevTools was already open)`,
+        : `DevTools already open — pick “${deviceName}” (⌘⇧M if the device toolbar is off)`,
     );
   } catch (e) {
     if (previousBounds) {
@@ -70,14 +116,19 @@ export async function openDeviceMode(deviceName: string, viewport?: { w: number;
   }
 }
 
-/** Close DevTools if we previously opened them via handoff, so window resizes measure clean chrome. */
+/**
+ * Close DevTools if our handoff opened them, so window resizes measure clean
+ * chrome. Only toggles when DevTools is verifiably open; the flag is cleared
+ * either way so a stale entry can't drive a later toggle.
+ */
 export async function closeDeviceModeIfNeeded(): Promise<void> {
   const active = (await LocalStorage.getItem<string>(DT_HANDOFF_KEY)) === "1";
   if (!active) return;
-  try {
-    await runAppleScript(CLOSE_SCRIPT);
-  } catch {
-    // still clear the flag so we don't skip opens forever
-  }
   await LocalStorage.removeItem(DT_HANDOFF_KEY);
+  if ((await devToolsState()) !== "open") return;
+  try {
+    await runAppleScript(TOGGLE_DEVTOOLS_KEYS);
+  } catch {
+    // best-effort; the next measure() surfaces any leftover dock
+  }
 }
