@@ -2,6 +2,7 @@ import { getPreferenceValues, showHUD } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
 import { measure, setBounds } from "./chrome";
 import { closeDeviceModeIfNeeded, openDeviceMode } from "./devtools";
+import { getBrowser } from "./browser";
 import { Preset } from "./types";
 
 export type ApplyResult =
@@ -23,7 +24,7 @@ export async function applyPreset(p: Preset): Promise<ApplyResult> {
   // points ÷ CSS-px (see Measurement.zoom) so it catches 150%/200%/50% too, which
   // devicePixelRatio alone cannot (those are integer DPRs indistinguishable from 100%).
   if (Math.abs(m1.zoom - 1) > 0.01) {
-    throw new Error(`Chrome zoom is ${Math.round(m1.zoom * 100)}%, not 100% — press ⌘0 and retry`);
+    throw new Error(`${getBrowser().label} zoom is ${Math.round(m1.zoom * 100)}%, not 100% — press ⌘0 and retry`);
   }
 
   const chromeW = m1.bounds.x2 - m1.bounds.x1 - m1.inner.w;

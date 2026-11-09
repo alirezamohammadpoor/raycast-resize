@@ -59,6 +59,24 @@
   ],
   "preferences": [
     {
+      "name": "browser",
+      "title": "Browser",
+      "description": "Which Chromium browser to resize and measure.",
+      "type": "dropdown",
+      "required": false,
+      "default": "chrome",
+      "data": [
+        {
+          "title": "Google Chrome",
+          "value": "chrome"
+        },
+        {
+          "title": "Dia",
+          "value": "dia"
+        }
+      ]
+    },
+    {
       "name": "cycle1",
       "title": "Cycle Slot 1",
       "description": "First preset in the Cycle Breakpoints rotation. Ignored if the user presets file defines a cycle array.",

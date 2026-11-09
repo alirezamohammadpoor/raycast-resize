@@ -8,4 +8,5 @@
 - **Phone Presets** preference to either resize the window directly or hand off to Chrome DevTools device mode for touch, DPR 3, and safe-area testing.
 - Custom presets in the extension support folder (`presets.json`), merged over the built-ins by id.
 - **Measure Viewport** command for inspecting the current viewport, window bounds, chrome delta, and zoom state.
+- **Browser** preference: Google Chrome or Dia.
 - Guards against silently wrong results: aborts when Chrome zoom is not 100%, clamps presets taller than the display and says so, and distinguishes a disabled Apple Events setting from an internal `chrome://` tab.
