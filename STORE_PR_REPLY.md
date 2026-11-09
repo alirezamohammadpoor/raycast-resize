@@ -1,14 +1,14 @@
-Hi @pernielsentikaer — going the **standalone** route (Chrome-specific AppleScript + DevTools handoff doesn’t fit Window Sizer’s general window-resize model).
+Hi @pernielsentikaer, thanks for the careful review!
 
-Addressed your checklist:
+**DevTools handoff now acts on verified state.** Before sending ⌥⌘I, `openDeviceMode` reads the checkmark on **View → Developer → Developer Tools** through System Events. The stored flag is no longer used to decide:
 
-- Renamed to **Chrome Viewport** (`chrome-viewport`) with a one-sentence description and `Chrome` command subtitles
-- Removed `SPEC.md` (+ README link)
-- Store-ready README (setup only; no clone-from-source section)
-- Custom presets now use `environment.supportPath` (legacy `~/.config/resize` migrated on first read)
-- `List.EmptyView` on Resize to Preset; presets load via `usePromise` (no unsafe render-time load)
-- DevTools handoff: measurement failure after shortcuts no longer shows a success HUD; prior bounds restored when possible
+- DevTools closed: open it plus the device toolbar, confirm it actually opened, and only then save the handoff flag.
+- DevTools already open: send no keys. The device toolbar has no readable menu state, so we don't risk toggling it off, and the HUD says to press ⌘⇧M if it's off.
+- State unreadable (e.g. no Accessibility permission): show an error toast and send no keystrokes.
+- `closeDeviceModeIfNeeded` clears the flag first and only toggles when DevTools is verifiably open, so a stale flag can't reopen it.
 
-Also fixed Cycle Breakpoints + DevTools: expand-only sizing (no forced shrink), skip toggle keystrokes when handoff is already active, and close DevTools before the next non-phone resize so chrome-delta isn’t poisoned by the dock.
+**Window Sizer:** the3ash confirmed in #31219 that Chrome-specific behavior and DevTools integration are outside Window Sizer's scope, so they'd prefer to keep them separate.
 
-Ready for another look when you have a moment 🙏
+**Also new:** a **Browser** preference (Google Chrome or Dia). Both are Chromium and share Chrome's AppleScript suite.
+
+Ready for another look 🙏
