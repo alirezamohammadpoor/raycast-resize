@@ -1,7 +1,8 @@
 import { getPreferenceValues, showHUD } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
 import { measure, setBounds } from "./chrome";
-import { openDeviceMode } from "./devtools";
+import { closeDeviceModeIfNeeded, openDeviceMode } from "./devtools";
+import { getBrowser } from "./browser";
 import { Preset } from "./types";
 
 export type ApplyResult =
@@ -23,7 +24,7 @@ export async function applyPreset(p: Preset): Promise<ApplyResult> {
   // points ÷ CSS-px (see Measurement.zoom) so it catches 150%/200%/50% too, which
   // devicePixelRatio alone cannot (those are integer DPRs indistinguishable from 100%).
   if (Math.abs(m1.zoom - 1) > 0.01) {
-    throw new Error(`Chrome zoom is ${Math.round(m1.zoom * 100)}%, not 100% — press ⌘0 and retry`);
+    throw new Error(`${getBrowser().label} zoom is ${Math.round(m1.zoom * 100)}%, not 100% — press ⌘0 and retry`);
   }
 
   const chromeW = m1.bounds.x2 - m1.bounds.x1 - m1.inner.w;
@@ -63,6 +64,10 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
     return;
   }
 
+  // Leaving a DevTools phone handoff: close the panel first so chrome-delta
+  // measurement isn't poisoned by the ~620px dock (Cycle MBP step after iPhone).
+  await closeDeviceModeIfNeeded();
+
   try {
     const r = await applyPreset(p);
     if (r.kind === "info") {
@@ -76,9 +81,7 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
       ? "✓"
       : `(requested ${r.requested.w}×${r.requested.h}${r.clamped ? ", clamped to display" : ""})`;
     const caveat = p.pointer === "coarse" ? " · geometry only" : "";
-    await showHUD(
-      `${prefix}${p.name} — viewport ${r.achieved.w}×${r.achieved.h} ${suffix}${caveat}`,
-    );
+    await showHUD(`${prefix}${p.name} — viewport ${r.achieved.w}×${r.achieved.h} ${suffix}${caveat}`);
   } catch (e) {
     await showFailureToast(e, { title: "Resize failed" });
   }
