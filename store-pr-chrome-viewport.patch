@@ -1,67 +1,3 @@
-From 6f48396d18fa65d12b74bcbe46e1ee2d8f2e4b9c Mon Sep 17 00:00:00 2001
-From: Cursor Agent <cursoragent@cursor.com>
-Date: Mon, 14 Sep 2026 13:34:47 +0000
-Subject: [PATCH] feat: Chrome Viewport standalone + DevTools cycle fix
-
----
- .../{resize => chrome-viewport}/.gitignore    |   0
- extensions/chrome-viewport/.prettierrc        |   4 +
- .../{resize => chrome-viewport}/CHANGELOG.md  |   4 +-
- extensions/chrome-viewport/README.md          |  41 +++++++
- .../assets/devices.json                       |   0
- .../assets/icon.png                           | Bin
- .../eslint.config.mjs                         |   0
- .../metadata/resize-1.png                     | Bin
- .../metadata/resize-2.png                     | Bin
- .../metadata/resize-3.png                     | Bin
- .../package-lock.json                         |   4 +-
- .../{resize => chrome-viewport}/package.json  |  25 ++--
- .../src/add-custom-preset.tsx                 |   2 +-
- .../src/apply-preset.ts                       |   3 +-
- .../{resize => chrome-viewport}/src/chrome.ts |   7 +-
- .../src/cycle-breakpoints.ts                  |   6 +-
- .../chrome-viewport/src/devtools-geometry.ts  |  34 ++++++
- extensions/chrome-viewport/src/devtools.ts    |  83 +++++++++++++
- .../src/measure-viewport.tsx                  |   6 +-
- .../src/presets.ts                            |  71 ++++++++----
- .../src/resize-to-preset.tsx                  |  64 +++++-----
- .../{resize => chrome-viewport}/src/resize.ts |  10 +-
- .../{resize => chrome-viewport}/src/types.ts  |   0
- .../{resize => chrome-viewport}/tsconfig.json |   0
- extensions/resize/.prettierrc                 |   3 -
- extensions/resize/README.md                   |  52 ---------
- extensions/resize/SPEC.md                     | 109 ------------------
- extensions/resize/src/devtools.ts             |  45 --------
- 28 files changed, 277 insertions(+), 296 deletions(-)
- rename extensions/{resize => chrome-viewport}/.gitignore (100%)
- create mode 100644 extensions/chrome-viewport/.prettierrc
- rename extensions/{resize => chrome-viewport}/CHANGELOG.md (89%)
- create mode 100644 extensions/chrome-viewport/README.md
- rename extensions/{resize => chrome-viewport}/assets/devices.json (100%)
- rename extensions/{resize => chrome-viewport}/assets/icon.png (100%)
- rename extensions/{resize => chrome-viewport}/eslint.config.mjs (100%)
- rename extensions/{resize => chrome-viewport}/metadata/resize-1.png (100%)
- rename extensions/{resize => chrome-viewport}/metadata/resize-2.png (100%)
- rename extensions/{resize => chrome-viewport}/metadata/resize-3.png (100%)
- rename extensions/{resize => chrome-viewport}/package-lock.json (99%)
- rename extensions/{resize => chrome-viewport}/package.json (93%)
- rename extensions/{resize => chrome-viewport}/src/add-custom-preset.tsx (95%)
- rename extensions/{resize => chrome-viewport}/src/apply-preset.ts (80%)
- rename extensions/{resize => chrome-viewport}/src/chrome.ts (95%)
- rename extensions/{resize => chrome-viewport}/src/cycle-breakpoints.ts (85%)
- create mode 100644 extensions/chrome-viewport/src/devtools-geometry.ts
- create mode 100644 extensions/chrome-viewport/src/devtools.ts
- rename extensions/{resize => chrome-viewport}/src/measure-viewport.tsx (81%)
- rename extensions/{resize => chrome-viewport}/src/presets.ts (60%)
- rename extensions/{resize => chrome-viewport}/src/resize-to-preset.tsx (59%)
- rename extensions/{resize => chrome-viewport}/src/resize.ts (89%)
- rename extensions/{resize => chrome-viewport}/src/types.ts (100%)
- rename extensions/{resize => chrome-viewport}/tsconfig.json (100%)
- delete mode 100644 extensions/resize/.prettierrc
- delete mode 100644 extensions/resize/README.md
- delete mode 100644 extensions/resize/SPEC.md
- delete mode 100644 extensions/resize/src/devtools.ts
-
 diff --git a/extensions/resize/.gitignore b/extensions/chrome-viewport/.gitignore
 similarity index 100%
 rename from extensions/resize/.gitignore
@@ -77,10 +13,10 @@ index 000000000..fc0f50306
 +  "singleQuote": false
 +}
 diff --git a/extensions/resize/CHANGELOG.md b/extensions/chrome-viewport/CHANGELOG.md
-similarity index 89%
+similarity index 86%
 rename from extensions/resize/CHANGELOG.md
 rename to extensions/chrome-viewport/CHANGELOG.md
-index 639592be9..ee4b6e1df 100644
+index 639592be9..4a39e29cc 100644
 --- a/extensions/resize/CHANGELOG.md
 +++ b/extensions/chrome-viewport/CHANGELOG.md
 @@ -1,4 +1,4 @@
@@ -89,20 +25,21 @@ index 639592be9..ee4b6e1df 100644
  
  ## [Initial Release] - {PR_MERGE_DATE}
  
-@@ -6,6 +6,6 @@
+@@ -6,6 +6,7 @@
  - 14 built-in presets across MacBooks, iPads, iPad Split View widths, and iPhones, using the same dimensions Chrome DevTools reports for each device.
  - **Cycle Breakpoints** command for stepping through a three-slot rotation on a single hotkey, configurable in extension preferences.
  - **Phone Presets** preference to either resize the window directly or hand off to Chrome DevTools device mode for touch, DPR 3, and safe-area testing.
 -- Custom presets in `~/.config/resize/presets.json`, merged over the built-ins by id.
 +- Custom presets in the extension support folder (`presets.json`), merged over the built-ins by id.
  - **Measure Viewport** command for inspecting the current viewport, window bounds, chrome delta, and zoom state.
++- **Browser** preference: Google Chrome or Dia.
  - Guards against silently wrong results: aborts when Chrome zoom is not 100%, clamps presets taller than the display and says so, and distinguishes a disabled Apple Events setting from an internal `chrome://` tab.
 diff --git a/extensions/chrome-viewport/README.md b/extensions/chrome-viewport/README.md
 new file mode 100644
-index 000000000..066da6e24
+index 000000000..cc75e41da
 --- /dev/null
 +++ b/extensions/chrome-viewport/README.md
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,45 @@
 +# Chrome Viewport
 +
 +Resize the front Chrome window so its **viewport** — not the outer frame — matches a device preset. Presets follow the Chrome DevTools contract (iPad Air → 820×1180). The local Chrome chrome is measured live on every run, so bookmarks bar, scrollbar mode, and docked DevTools are absorbed automatically.
@@ -115,15 +52,19 @@ index 000000000..066da6e24
 +2. Chrome → **View → Developer → Allow JavaScript from Apple Events** (one-time; needed to measure the viewport).
 +3. First resize prompts macOS to allow Raycast to control Chrome — accept.
 +
++### Using Dia
++
++Set **Browser** to Dia in extension preferences (⌘⇧, on any command). Everything else works the same: enable **View → Developer → Allow JavaScript from Apple Events** in Dia, and accept the prompt to let Raycast control Dia.
++
 +## Permissions & how it works
 +
 +The extension drives Chrome exclusively through Chrome's own AppleScript dictionary — no Accessibility API for resizing.
 +
-+| Permission                                   | Used for                                                                                | When asked                                                             |
-+| -------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-+| Chrome: "Allow JavaScript from Apple Events" | Reading `innerWidth`/`innerHeight`/`devicePixelRatio` to measure the window chrome live | Manual one-time toggle (Chrome blocks programmatic enabling by design) |
-+| macOS Automation: Raycast → Google Chrome    | `get/set bounds`, `execute javascript`                                                  | System prompt on first resize                                          |
-+| macOS Accessibility (Raycast)                | Only the optional DevTools handoff (sends ⌥⌘I + ⌘⇧M via System Events)                  | Only if you use DevTools mode                                          |
++| Permission                                   | Used for                                                                                       | When asked                                                             |
++| -------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
++| Chrome: "Allow JavaScript from Apple Events" | Reading `innerWidth`/`innerHeight`/`devicePixelRatio` to measure the window chrome live        | Manual one-time toggle (Chrome blocks programmatic enabling by design) |
++| macOS Automation: Raycast → Google Chrome    | `get/set bounds`, `execute javascript`                                                         | System prompt on first resize                                          |
++| macOS Accessibility (Raycast)                | Only the optional DevTools handoff (reads the Developer Tools menu checkmark, sends ⌥⌘I + ⌘⇧M) | Only if you use DevTools mode                                          |
 +
 +The resize loop: measure viewport → compute chrome delta (bounds − inner) → set bounds = target + delta → re-measure → correct once. Zoom ≠ 100% aborts with a warning (CSS px would not equal points). Presets that don't fit the display clamp height and say so in the HUD.
 +
@@ -189,10 +130,10 @@ index 0acbdd57c..b0bf4ad72 100644
        "dependencies": {
          "@raycast/api": "^1.94.0",
 diff --git a/extensions/resize/package.json b/extensions/chrome-viewport/package.json
-similarity index 93%
+similarity index 89%
 rename from extensions/resize/package.json
 rename to extensions/chrome-viewport/package.json
-index 3795ad556..6f9446b17 100644
+index 3795ad556..7de07897a 100644
 --- a/extensions/resize/package.json
 +++ b/extensions/chrome-viewport/package.json
 @@ -1,8 +1,8 @@
@@ -217,7 +158,7 @@ index 3795ad556..6f9446b17 100644
      },
      {
        "name": "apply-preset",
-@@ -31,32 +32,36 @@
+@@ -31,32 +32,54 @@
            "type": "text",
            "required": true
          }
@@ -252,6 +193,24 @@ index 3795ad556..6f9446b17 100644
      }
    ],
    "preferences": [
++    {
++      "name": "browser",
++      "title": "Browser",
++      "description": "Which Chromium browser to resize and measure.",
++      "type": "dropdown",
++      "required": false,
++      "default": "chrome",
++      "data": [
++        {
++          "title": "Google Chrome",
++          "value": "chrome"
++        },
++        {
++          "title": "Dia",
++          "value": "dia"
++        }
++      ]
++    },
      {
        "name": "cycle1",
        "title": "Cycle Slot 1",
@@ -293,31 +252,115 @@ index 97ce72a0c..98f567777 100644
  
    if (!preset) {
      await showHUD(`No preset matching “${props.arguments.preset}”`);
+diff --git a/extensions/chrome-viewport/src/browser.ts b/extensions/chrome-viewport/src/browser.ts
+new file mode 100644
+index 000000000..bbe21c338
+--- /dev/null
++++ b/extensions/chrome-viewport/src/browser.ts
+@@ -0,0 +1,19 @@
++import { getPreferenceValues } from "@raycast/api";
++
++export interface Browser {
++  /** AppleScript application name, also the System Events process name. */
++  app: string;
++  /** Short name for HUDs and errors. */
++  label: string;
++}
++
++const BROWSERS: Record<string, Browser> = {
++  chrome: { app: "Google Chrome", label: "Chrome" },
++  dia: { app: "Dia", label: "Dia" },
++};
++
++/** The browser picked in extension preferences. Both are Chromium and share Chrome's AppleScript suite. */
++export function getBrowser(): Browser {
++  const { browser } = getPreferenceValues<{ browser?: string }>();
++  return BROWSERS[browser ?? "chrome"] ?? BROWSERS.chrome;
++}
 diff --git a/extensions/resize/src/chrome.ts b/extensions/chrome-viewport/src/chrome.ts
-similarity index 95%
+similarity index 68%
 rename from extensions/resize/src/chrome.ts
 rename to extensions/chrome-viewport/src/chrome.ts
-index 8f9139993..49c1cf842 100644
+index 8f9139993..b77538250 100644
 --- a/extensions/resize/src/chrome.ts
 +++ b/extensions/chrome-viewport/src/chrome.ts
-@@ -55,8 +55,7 @@ export async function measure(): Promise<Measurement> {
+@@ -1,4 +1,5 @@
+ import { runAppleScript } from "@raycast/utils";
++import { getBrowser } from "./browser";
+ 
+ export interface Measurement {
+   bounds: { x1: number; y1: number; x2: number; y2: number };
+@@ -12,10 +13,11 @@ export interface Measurement {
+   avail: { w: number; h: number; left: number; top: number };
+ }
+ 
+-export const SETUP_HINT =
+-  'Enable Chrome → View → Developer → "Allow JavaScript from Apple Events" (restart Chrome if just toggled), then retry';
++export function setupHint(label = getBrowser().label): string {
++  return `Enable ${label} → View → Developer → "Allow JavaScript from Apple Events" (restart ${label} if just toggled), then retry`;
++}
+ 
+-const INTERNAL_PAGE = /^(chrome|chrome-extension|about|devtools):/;
++const INTERNAL_PAGE = /^(chrome|chrome-extension|dia|about|devtools):/;
+ 
+ // No string literals inside the JS payload — it is embedded in an AppleScript string.
+ const MEASURE_JS =
+@@ -23,8 +25,8 @@ const MEASURE_JS =
+   "dpr:window.devicePixelRatio,aw:screen.availWidth,ah:screen.availHeight," +
+   "al:screen.availLeft||0,at:screen.availTop||0})";
+ 
+-const MEASURE_SCRIPT = `
+-tell application "Google Chrome"
++const measureScript = (app: string) => `
++tell application "${app}"
+ 	if (count of windows) is 0 then return "ERR:NO_WINDOW"
+ 	set theURL to ""
+ 	try
+@@ -43,28 +45,28 @@ tell application "Google Chrome"
+ end tell`;
+ 
+ export async function measure(): Promise<Measurement> {
+-  const out = (await runAppleScript(MEASURE_SCRIPT)).trim();
++  const { app, label } = getBrowser();
++  const out = (await runAppleScript(measureScript(app))).trim();
+ 
+-  if (out === "ERR:NO_WINDOW") throw new Error("No Chrome window open");
++  if (out === "ERR:NO_WINDOW") throw new Error(`No ${label} window open`);
+   if (out.startsWith("ERR:JS")) {
+     const detail = out.replace(/^ERR:JS(NULL)?:/, "");
+     const url = detail.split(" ::: ")[0].trim();
+     if (INTERNAL_PAGE.test(url) || url === "") {
+       throw new Error(
+-        `Active tab is an internal Chrome page (${url || "new tab"}) — JS can't run there. Focus a regular website tab and retry.`,
++        `Active tab is an internal ${label} page (${url || "new tab"}) — JS can't run there. Focus a regular website tab and retry.`,
        );
      }
-     const chromeMsg = detail.split(" ::: ")[1]?.trim() ?? "";
+-    const chromeMsg = detail.split(" ::: ")[1]?.trim() ?? "";
 -    if (chromeMsg.includes("turned off") || out.startsWith("ERR:JSNULL"))
 -      throw new Error(SETUP_HINT);
-+    if (chromeMsg.includes("turned off") || out.startsWith("ERR:JSNULL")) throw new Error(SETUP_HINT);
-     throw new Error(chromeMsg || SETUP_HINT);
+-    throw new Error(chromeMsg || SETUP_HINT);
++    const browserMsg = detail.split(" ::: ")[1]?.trim() ?? "";
++    if (browserMsg.includes("turned off") || out.startsWith("ERR:JSNULL")) throw new Error(setupHint(label));
++    throw new Error(browserMsg || setupHint(label));
    }
  
-@@ -77,7 +76,5 @@ export async function measure(): Promise<Measurement> {
+   const [boundsStr, json] = out.split("|");
+   const [x1, y1, x2, y2] = boundsStr.split(",").map(Number);
+   const d = JSON.parse(json);
+   if ([x1, y1, x2, y2, d.iw, d.ih, d.ow].some((n) => !Number.isFinite(n)) || d.ow <= 0) {
+-    throw new Error(`Could not parse Chrome measurement: ${out}`);
++    throw new Error(`Could not parse ${label} measurement: ${out}`);
+   }
+   return {
+     bounds: { x1, y1, x2, y2 },
+@@ -77,7 +79,5 @@ export async function measure(): Promise<Measurement> {
  
  export async function setBounds(x1: number, y1: number, x2: number, y2: number): Promise<void> {
    const coords = [x1, y1, x2, y2].map(Math.round).join(", ");
 -  await runAppleScript(
 -    `tell application "Google Chrome" to set bounds of front window to {${coords}}`,
 -  );
-+  await runAppleScript(`tell application "Google Chrome" to set bounds of front window to {${coords}}`);
++  await runAppleScript(`tell application "${getBrowser().app}" to set bounds of front window to {${coords}}`);
  }
 diff --git a/extensions/resize/src/cycle-breakpoints.ts b/extensions/chrome-viewport/src/cycle-breakpoints.ts
 similarity index 85%
@@ -382,50 +425,92 @@ index 000000000..b33dffdbc
 +}
 diff --git a/extensions/chrome-viewport/src/devtools.ts b/extensions/chrome-viewport/src/devtools.ts
 new file mode 100644
-index 000000000..2df07324b
+index 000000000..a6c7f5b05
 --- /dev/null
 +++ b/extensions/chrome-viewport/src/devtools.ts
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,134 @@
 +import { closeMainWindow, LocalStorage, showHUD } from "@raycast/api";
 +import { runAppleScript, showFailureToast } from "@raycast/utils";
++import { getBrowser } from "./browser";
 +import { measure, setBounds } from "./chrome";
 +import { expandForDeviceMode } from "./devtools-geometry";
 +
 +export { DEVTOOLS_DOCK, expandForDeviceMode } from "./devtools-geometry";
 +
-+/** Set while we believe DevTools device mode is open from our handoff. */
++/** Set only after we opened DevTools ourselves and then verified it is open. */
 +export const DT_HANDOFF_KEY = "devtools-handoff-active";
 +
-+// Chrome blocks opening DevTools programmatically except via keystrokes, so this
-+// needs Raycast's Accessibility permission (System Events). ⌥⌘I and ⌘⇧M are both
-+// toggles — we track handoff state in LocalStorage so repeat Cycle presses don't
-+// close DevTools / flip device mode off.
-+const OPEN_SCRIPT = `
-+tell application "Google Chrome" to activate
-+delay 0.3
++type DevToolsState = "open" | "closed" | "unknown";
++
++// The browser blocks opening DevTools programmatically except via keystrokes, so
++// this needs Raycast's Accessibility permission (System Events). ⌥⌘I is a toggle,
++// so we never send it on a remembered flag alone: we read the checkmark on the
++// View → Developer → Developer Tools menu item first and act on that.
++const stateScript = (app: string) => `
++tell application "${app}" to activate
++delay 0.2
++tell application "System Events"
++	if not (exists process "${app}") then return "unknown"
++	tell process "${app}"
++		repeat with top in menu bar items of menu bar 1
++			try
++				repeat with sub in menu items of menu 1 of top
++					try
++						set mi to menu item "Developer Tools" of menu 1 of sub
++						set mark to value of attribute "AXMenuItemMarkChar" of mi
++						if mark is missing value or mark is "" then return "closed"
++						return "open"
++					end try
++				end repeat
++			end try
++		end repeat
++	end tell
++end tell
++return "unknown"`;
++
++const OPEN_KEYS = `
 +tell application "System Events"
 +	keystroke "i" using {command down, option down}
 +	delay 0.5
 +	keystroke "m" using {command down, shift down}
 +end tell`;
 +
-+const CLOSE_SCRIPT = `
-+tell application "Google Chrome" to activate
-+delay 0.2
++const TOGGLE_DEVTOOLS_KEYS = `
 +tell application "System Events"
 +	keystroke "i" using {command down, option down}
 +end tell`;
 +
++async function devToolsState(): Promise<DevToolsState> {
++  try {
++    const out = (await runAppleScript(stateScript(getBrowser().app))).trim();
++    return out === "open" || out === "closed" ? out : "unknown";
++  } catch {
++    return "unknown";
++  }
++}
++
 +export async function openDeviceMode(deviceName: string, viewport?: { w: number; h: number }): Promise<void> {
++  const { label } = getBrowser();
 +  let previousBounds: { x1: number; y1: number; x2: number; y2: number } | undefined;
 +
 +  try {
 +    await closeMainWindow();
 +
-+    const alreadyOpen = (await LocalStorage.getItem<string>(DT_HANDOFF_KEY)) === "1";
-+    if (!alreadyOpen) {
-+      await runAppleScript(OPEN_SCRIPT);
-+      await LocalStorage.setItem(DT_HANDOFF_KEY, "1");
++    // A remembered flag can be stale (DevTools closed by hand), so drop it and
++    // re-derive everything from the real menu state.
++    await LocalStorage.removeItem(DT_HANDOFF_KEY);
++    const before = await devToolsState();
++    if (before === "unknown") {
++      throw new Error(`Couldn't read ${label}'s Developer Tools state — check Raycast's Accessibility permission`);
++    }
++
++    let openedByUs = false;
++    if (before === "closed") {
++      await runAppleScript(OPEN_KEYS);
++      if ((await devToolsState()) !== "open") {
++        throw new Error(`${label} DevTools didn't open`);
++      }
++      openedByUs = true;
 +    }
 +
 +    if (viewport) {
@@ -439,10 +524,14 @@ index 000000000..2df07324b
 +      }
 +    }
 +
++    if (openedByUs) await LocalStorage.setItem(DT_HANDOFF_KEY, "1");
++
++    // ⌘⇧M (device toolbar) has no readable menu state, so when DevTools was
++    // already open we leave it alone rather than risk toggling it off.
 +    await showHUD(
-+      alreadyOpen
++      openedByUs
 +        ? `DevTools device mode — pick “${deviceName}”`
-+        : `DevTools device mode — pick “${deviceName}” (⌘⇧M if DevTools was already open)`,
++        : `DevTools already open — pick “${deviceName}” (⌘⇧M if the device toolbar is off)`,
 +    );
 +  } catch (e) {
 +    if (previousBounds) {
@@ -458,25 +547,37 @@ index 000000000..2df07324b
 +  }
 +}
 +
-+/** Close DevTools if we previously opened them via handoff, so window resizes measure clean chrome. */
++/**
++ * Close DevTools if our handoff opened them, so window resizes measure clean
++ * chrome. Only toggles when DevTools is verifiably open; the flag is cleared
++ * either way so a stale entry can't drive a later toggle.
++ */
 +export async function closeDeviceModeIfNeeded(): Promise<void> {
 +  const active = (await LocalStorage.getItem<string>(DT_HANDOFF_KEY)) === "1";
 +  if (!active) return;
-+  try {
-+    await runAppleScript(CLOSE_SCRIPT);
-+  } catch {
-+    // still clear the flag so we don't skip opens forever
-+  }
 +  await LocalStorage.removeItem(DT_HANDOFF_KEY);
++  if ((await devToolsState()) !== "open") return;
++  try {
++    await runAppleScript(TOGGLE_DEVTOOLS_KEYS);
++  } catch {
++    // best-effort; the next measure() surfaces any leftover dock
++  }
 +}
 diff --git a/extensions/resize/src/measure-viewport.tsx b/extensions/chrome-viewport/src/measure-viewport.tsx
-similarity index 81%
+similarity index 67%
 rename from extensions/resize/src/measure-viewport.tsx
 rename to extensions/chrome-viewport/src/measure-viewport.tsx
-index c340568c2..99440b205 100644
+index c340568c2..a40e96def 100644
 --- a/extensions/resize/src/measure-viewport.tsx
 +++ b/extensions/chrome-viewport/src/measure-viewport.tsx
-@@ -13,14 +13,16 @@ export default function Command() {
+@@ -1,5 +1,6 @@
+ import { Detail } from "@raycast/api";
+ import { usePromise } from "@raycast/utils";
++import { getBrowser } from "./browser";
+ import { measure } from "./chrome";
+ 
+ export default function Command() {
+@@ -13,14 +14,16 @@ export default function Command() {
    } else {
      const outerW = data.bounds.x2 - data.bounds.x1;
      const outerH = data.bounds.y2 - data.bounds.y1;
@@ -484,12 +585,14 @@ index c340568c2..99440b205 100644
 +    const zoomPct = Math.round(data.zoom * 100);
 +    const zoomOk = Math.abs(data.zoom - 1) <= 0.01;
      md = [
-       "# Current Chrome Window",
+-      "# Current Chrome Window",
++      `# Current ${getBrowser().label} Window`,
        "",
        `**Viewport:** ${data.inner.w}×${data.inner.h} CSS px`,
        `**Outer window:** ${outerW}×${outerH} at (${data.bounds.x1}, ${data.bounds.y1})`,
-       `**Chrome UI delta:** +${outerW - data.inner.w} wide / +${outerH - data.inner.h} tall`,
+-      `**Chrome UI delta:** +${outerW - data.inner.w} wide / +${outerH - data.inner.h} tall`,
 -      `**devicePixelRatio:** ${data.dpr} — zoom ${zoomOk ? "100% ✓" : "NOT 100%, press ⌘0"}`,
++      `**Browser UI delta:** +${outerW - data.inner.w} wide / +${outerH - data.inner.h} tall`,
 +      `**devicePixelRatio:** ${data.dpr}`,
 +      `**Zoom:** ${zoomPct}% ${zoomOk ? "✓" : "— not 100%, press ⌘0"}`,
        `**Display visible frame:** ${data.avail.w}×${data.avail.h} at (${data.avail.left}, ${data.avail.top})`,
@@ -721,22 +824,32 @@ index 2e5f40903..678e52ca1 100644
        }
      />
 diff --git a/extensions/resize/src/resize.ts b/extensions/chrome-viewport/src/resize.ts
-similarity index 89%
+similarity index 84%
 rename from extensions/resize/src/resize.ts
 rename to extensions/chrome-viewport/src/resize.ts
-index d3479181c..39953e842 100644
+index d3479181c..138aa8e7a 100644
 --- a/extensions/resize/src/resize.ts
 +++ b/extensions/chrome-viewport/src/resize.ts
-@@ -1,7 +1,7 @@
+@@ -1,7 +1,8 @@
  import { getPreferenceValues, showHUD } from "@raycast/api";
  import { showFailureToast } from "@raycast/utils";
  import { measure, setBounds } from "./chrome";
 -import { openDeviceMode } from "./devtools";
 +import { closeDeviceModeIfNeeded, openDeviceMode } from "./devtools";
++import { getBrowser } from "./browser";
  import { Preset } from "./types";
  
  export type ApplyResult =
-@@ -63,6 +63,10 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
+@@ -23,7 +24,7 @@ export async function applyPreset(p: Preset): Promise<ApplyResult> {
+   // points ÷ CSS-px (see Measurement.zoom) so it catches 150%/200%/50% too, which
+   // devicePixelRatio alone cannot (those are integer DPRs indistinguishable from 100%).
+   if (Math.abs(m1.zoom - 1) > 0.01) {
+-    throw new Error(`Chrome zoom is ${Math.round(m1.zoom * 100)}%, not 100% — press ⌘0 and retry`);
++    throw new Error(`${getBrowser().label} zoom is ${Math.round(m1.zoom * 100)}%, not 100% — press ⌘0 and retry`);
+   }
+ 
+   const chromeW = m1.bounds.x2 - m1.bounds.x1 - m1.inner.w;
+@@ -63,6 +64,10 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
      return;
    }
  
@@ -747,7 +860,7 @@ index d3479181c..39953e842 100644
    try {
      const r = await applyPreset(p);
      if (r.kind === "info") {
-@@ -76,9 +80,7 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
+@@ -76,9 +81,7 @@ export async function applyAndNotify(p: Preset, prefix = ""): Promise<void> {
        ? "✓"
        : `(requested ${r.requested.w}×${r.requested.h}${r.clamped ? ", clamped to display" : ""})`;
      const caveat = p.pointer === "coarse" ? " · geometry only" : "";
@@ -999,6 +1112,3 @@ index edf4f2baa..000000000
 -    });
 -  }
 -}
--- 
-2.43.0
-
